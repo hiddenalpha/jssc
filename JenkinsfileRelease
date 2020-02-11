@@ -1,0 +1,39 @@
+properties([
+    parameters([
+        booleanParam(
+            defaultValue: true,
+            description: 'Auto merge given branch into master.',
+            name: 'AUTO_MERGE'
+        ),
+        string(
+            defaultValue: 'develop',
+            description: 'Set branch to release.',
+            name: 'BRANCH_NAME'
+        ),
+        string(
+            defaultValue: '',
+            description: 'Set release version.',
+            name: 'RELEASE_VERSION'
+        )
+    ]),
+    buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '20'))
+])
+
+node('isa-slaves-61') {
+    timestamps {
+        env.PATH = "${tool 'maven-3.2.5'}/bin:${env.PATH}"
+        env.JAVA_HOME  = "${tool 'JDK 1.8'}"
+
+        currentBuild.result = 'SUCCESS'
+        WORKSPACE = pwd()
+        PROJECT_NAME = 'jssc'
+        SCM_URL = "https://gitit.post.ch/scm/isa/${PROJECT_NAME}.git"
+
+        step([$class: 'WsCleanup'])
+
+		sh "wget -O ./release-pipeline.groovy http://artifactory.pnet.ch/artifactory/libs-release-local/ch/post/it/common/jenkins/pipeline/00.03.00.04/pipeline-00.03.00.04.jar!jenkins-release-pipeline.groovy"
+        commonReleasePipeline = load 'release-pipeline.groovy'
+
+		commonReleasePipeline.performRelease(PROJECT_NAME, SCM_URL, BRANCH_NAME, AUTO_MERGE, 'deploy', '-Pjenkins-deploy -Darguments="-Dmaven.javadoc.skip=true"', WORKSPACE, RELEASE_VERSION, null, 'paisarel@post.ch', true, "paisa-release-${PROJECT_NAME}")
+    }
+}
