@@ -72,6 +72,13 @@ public class SerialNativeInterface {
     public static final String PROPERTY_JSSC_PARMRK = "JSSC_PARMRK";
 
     static {
+        boolean success = tryLoad("/jssc-dev/jssc.so");
+        if (!success) {
+            defaultLoad();
+        }
+    }
+
+    private static void defaultLoad() {
         String libFolderPath;
         String libName;
 
@@ -162,6 +169,20 @@ public class SerialNativeInterface {
             if (!versionBase.equals(versionNative)) {
                 System.err.println("Warning! jSSC Java and Native versions mismatch (Java: " + versionBase + ", Native: " + versionNative + ")");
             }
+        }
+    }
+
+    private static boolean tryLoad(String filename) {
+        try {
+            System.out.println("Try to load " + filename);
+            System.load(filename);
+            System.out.println("Loading " + filename + " successful");
+            osType = OS_LINUX;
+            return true;
+        } catch (Throwable ex) {
+            System.err.println("Loading " + filename + " failed");
+            ex.printStackTrace();
+            return false;
         }
     }
 
