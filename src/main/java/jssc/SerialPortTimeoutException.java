@@ -25,7 +25,6 @@
 package jssc;
 
 /**
- *
  * @author scream3r
  */
 public class SerialPortTimeoutException extends Exception {
@@ -44,21 +43,21 @@ public class SerialPortTimeoutException extends Exception {
     /**
      * Getting port name during operation with which the exception was called
      */
-    public String getPortName(){
+    public String getPortName() {
         return portName;
     }
 
     /**
      * Getting method name during execution of which the exception was called
      */
-    public String getMethodName(){
+    public String getMethodName() {
         return methodName;
     }
 
     /**
      * Getting timeout value in millisecond
      */
-    public int getTimeoutValue(){
+    public int getTimeoutValue() {
         return timeoutValue;
     }
 }

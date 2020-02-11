@@ -25,7 +25,6 @@
 package jssc;
 
 /**
- *
  * @author scream3r
  */
 public class SerialPortEvent {
@@ -44,7 +43,7 @@ public class SerialPortEvent {
     public static final int ERR = 128;
     public static final int RING = 256;
 
-    public SerialPortEvent(String portName, int eventType, int eventValue){
+    public SerialPortEvent(String portName, int eventType, int eventValue) {
         this.portName = portName;
         this.eventType = eventType;
         this.eventValue = eventValue;
@@ -86,10 +85,9 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"RXCHAR"</b> is received and otherwise false
      */
     public boolean isRXCHAR() {
-        if(eventType == RXCHAR){
+        if (eventType == RXCHAR) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -98,10 +96,9 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"RXFLAG"</b> is received and otherwise false
      */
     public boolean isRXFLAG() {
-        if(eventType == RXFLAG){
+        if (eventType == RXFLAG) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -110,10 +107,9 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"TXEMPTY"</b> is received and otherwise false
      */
     public boolean isTXEMPTY() {
-        if(eventType == TXEMPTY){
+        if (eventType == TXEMPTY) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -122,10 +118,9 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"CTS"</b> is received and otherwise false
      */
     public boolean isCTS() {
-        if(eventType == CTS){
+        if (eventType == CTS) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -134,10 +129,9 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"DSR"</b> is received and otherwise false
      */
     public boolean isDSR() {
-        if(eventType == DSR){
+        if (eventType == DSR) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -146,10 +140,9 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"RLSD"</b> is received and otherwise false
      */
     public boolean isRLSD() {
-        if(eventType == RLSD){
+        if (eventType == RLSD) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -158,10 +151,9 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"BREAK"</b> is received and otherwise false
      */
     public boolean isBREAK() {
-        if(eventType == BREAK){
+        if (eventType == BREAK) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -170,10 +162,9 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"ERR"</b> is received and otherwise false
      */
     public boolean isERR() {
-        if(eventType == ERR){
+        if (eventType == ERR) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -182,10 +173,9 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"RING"</b> is received and otherwise false
      */
     public boolean isRING() {
-        if(eventType == RING){
+        if (eventType == RING) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
