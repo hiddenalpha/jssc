@@ -40,6 +40,12 @@ scp -rp src/ isa@eddieXXXXX:jssc/src
 And then on that Eddie:
 ```
 cd jssc
-docker run --rm --user $(id -u):$(id -g) -v "$PWD":/blubb -w /blubb gcc:9.2.0 g++ -Isrc/main/extracted-jni-headers -fPIC -shared -o jssc.so src/main/cpp/_nix_ba sed/jssc.cpp
+docker run --rm --user $(id -u):$(id -g) -v "$PWD":/blubb -w /blubb gcc:4.8 g++ -Isrc/main/extracted-jni-headers -fPIC -shared -o jssc.so src/main/cpp/_nix_based/jssc.cpp
 ```
+Modify the generated docker-compose.yaml by adding a volume.mount to consteallation pegasus:
+```
+      - /where/is/your/just/compiled/jssc.so:/jssc-dev/jssc.so:ro
+```
+Our JSSC-Java-Library will automatically pick-up `/jssc-dev/jssc.so` and use this instead of its internal provided library
+
 see also [README concerning JNI-header-files](src/main/extracted-jni-headers/README.md)
