@@ -187,7 +187,7 @@ public class SerialNativeInterface {
 
     /**
      * Get OS type (OS_LINUX || OS_WINDOWS || OS_SOLARIS)
-     * @return on of the "OS_" constants
+     * @return one of the "OS_" constants
      * @since 0.8
      */
     public static int getOsType() {
