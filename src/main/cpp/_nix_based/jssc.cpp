@@ -740,7 +740,7 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
     // advantage: we can use poll() so we still return 'quickly' when new incomping bytes arrived
     // only Events like CTS/DSR/RING etc.. are delayed up to 100 ms before they are delivered back to Java
     // Note also that the 'wait 100 ms' leads to much less idle-CPU-load than the original 'sleep 1 ms' (in Java) where we hat ~10% idle load
-    struct pollfd fds[1];
+    struct pollfd fds[1]; // TODO: can be implemented without array, i.e. as simple/single struct
     fds[0].fd = portHandle;
     fds[0].events = POLLIN | POLLPRI | POLLRDHUP;
     poll(fds, 1, 100);  // poll does not wait for serial-events like 'DCD line changed' or 'RI line changed' - so we need to work with a timeout
