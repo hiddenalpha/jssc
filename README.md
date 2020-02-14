@@ -35,17 +35,24 @@ Windows-and Mac-Libraries are kept untouched in their binary form.
 - We only need and support the 64-Bit-Linux-binary.<br>
 *i.e. if you need to compile Windows-DLL or for MacOS or a 32-Bit-library: help yourself*
 ```
-scp -rp src/ isa@eddieXXXXX:jssc/src
+scp -rp src/ user@eddieXXXXX:jssc/src
 ```
 And then on that Eddie:
 ```
 cd jssc
-docker run --rm --user $(id -u):$(id -g) -v "$PWD":/blubb -w /blubb gcc:4.8 g++ -Isrc/main/extracted-jni-headers -fPIC -shared -o jssc.so src/main/cpp/_nix_based/jssc.cpp
+docker run --rm --user $(id -u):$(id -g) -v "$PWD":/blubb -w /blubb gcc:4.8 g++ -Isrc/main/extracted-jni-headers -fPIC -shared -o src/main/resources/libs/linux/libjSSC_x86_64.so src/main/cpp/_nix_based/jssc.cpp
 ```
 Modify the generated docker-compose.yaml by adding a volume.mount to consteallation pegasus:
 ```
-      - /where/is/your/just/compiled/jssc.so:/jssc-dev/jssc.so:ro
+      - /path/to/jssc/src/main/resources/libs/linux/libjSSC_x86_64.so:/jssc-dev/jssc.so:ro
 ```
 Our JSSC-Java-Library will automatically pick-up `/jssc-dev/jssc.so` and use this instead of its internal provided library
+
+After your modified and compiled native lib works, do this on your dev-machine:
+```
+scp -r user@eddieXXXXX:jssc/src .
+```
+to copy-back especially your `*.cpp` and the compiled `*.so` to commit the changes to Git
+
 
 see also [README concerning JNI-header-files](src/main/extracted-jni-headers/README.md)
