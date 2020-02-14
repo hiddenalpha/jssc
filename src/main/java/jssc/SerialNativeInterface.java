@@ -31,9 +31,6 @@ import java.io.*;
  */
 public class SerialNativeInterface {
 
-    private static final String libVersion = "2.8"; //jSSC-2.8.0 Release from 24.01.2014
-    private static final String libMinorSuffix = "0"; //since 0.9.0
-
     public static final int OS_LINUX = 0;
     public static final int OS_WINDOWS = 1;
     public static final int OS_SOLARIS = 2;//since 0.9.0
@@ -73,7 +70,9 @@ public class SerialNativeInterface {
 
     static {
         boolean success = tryLoad("/jssc-dev/jssc.so");
-        if (!success) {
+        if(success) {
+            osType = OS_LINUX;
+        } else  {
             defaultLoad();
         }
     }
@@ -82,17 +81,11 @@ public class SerialNativeInterface {
         String libFolderPath;
         String libName;
 
-        String osName = System.getProperty("os.name");
-        String architecture = System.getProperty("os.arch");
-        String userHome = System.getProperty("user.home");
-        String fileSeparator = System.getProperty("file.separator");
-        String tmpFolder = System.getProperty("java.io.tmpdir");
-
-        //since 2.3.0 ->
-        String libRootFolder = new File(userHome).canWrite() ? userHome : tmpFolder;
-        //<- since 2.3.0
-
-        String javaLibPath = System.getProperty("java.library.path");//since 2.1.0
+        String osName        = System.getProperty("os.name"          );
+        String architecture  = System.getProperty("os.arch"          );
+        String fileSeparator = System.getProperty("file.separator"   );
+        String libRootFolder = System.getProperty("java.io.tmpdir"   );
+        String javaLibPath   = System.getProperty("java.library.path");
 
         if (osName.equals("Linux")) {
             osName = "linux";
@@ -137,163 +130,68 @@ public class SerialNativeInterface {
         }
 
         libFolderPath = libRootFolder + fileSeparator + ".jssc" + fileSeparator + osName;
-        libName = "jSSC-" + libVersion + "_" + architecture;
+        libName = "jSSC_" + architecture;
         libName = System.mapLibraryName(libName);
 
         if (libName.endsWith(".dylib")) {//Since 2.1.0 MacOSX 10.8 fix
             libName = libName.replace(".dylib", ".jnilib");
         }
 
-        boolean loadLib = false;
-
-        if (isLibFolderExist(libFolderPath)) {
-            if (isLibFileExist(libFolderPath + fileSeparator + libName)) {
-                loadLib = true;
-            } else {
-                if (extractLib((libFolderPath + fileSeparator + libName), osName, libName)) {
-                    loadLib = true;
-                }
-            }
-        } else {
-            if (new File(libFolderPath).mkdirs()) {
-                if (extractLib((libFolderPath + fileSeparator + libName), osName, libName)) {
-                    loadLib = true;
-                }
-            }
-        }
-
-        if (loadLib) {
-            System.load(libFolderPath + fileSeparator + libName);
-            String versionBase = getLibraryBaseVersion();
-            String versionNative = getNativeLibraryVersion();
-            if (!versionBase.equals(versionNative)) {
-                System.err.println("Warning! jSSC Java and Native versions mismatch (Java: " + versionBase + ", Native: " + versionNative + ")");
-            }
-        }
+        new File(libFolderPath).mkdirs();
+        extractLib((libFolderPath + fileSeparator + libName), osName, libName);
+        tryLoad(libFolderPath + fileSeparator + libName);
     }
 
     private static boolean tryLoad(String filename) {
         try {
-            System.out.println("Try to load " + filename);
+            if (!new File(filename).exists()) {
+                System.err.println("JSSC: File " + filename + "does not exist --> will not try to load");
+                return false;
+            }
+            System.out.println("JSSC: Try to load " + filename);
             System.load(filename);
-            System.out.println("Loading " + filename + " successful");
-            osType = OS_LINUX;
+            System.out.println("JSSC: Loading " + filename + " successful");
             return true;
         } catch (Throwable ex) {
-            System.err.println("Loading " + filename + " failed");
+            System.err.println("JSSC: Loading " + filename + " failed");
             ex.printStackTrace();
             return false;
         }
     }
 
     /**
-     * Is library folder exists
-     *
-     * @param libFolderPath
-     * @since 0.8
-     */
-    private static boolean isLibFolderExist(String libFolderPath) {
-        boolean returnValue = false;
-        File folder = new File(libFolderPath);
-        if (folder.exists() && folder.isDirectory()) {
-            returnValue = true;
-        }
-        return returnValue;
-    }
-
-    /**
-     * Is library file exists
-     *
-     * @param libFilePath
-     * @since 0.8
-     */
-    private static boolean isLibFileExist(String libFilePath) {
-        boolean returnValue = false;
-        File folder = new File(libFilePath);
-        if (folder.exists() && folder.isFile()) {
-            returnValue = true;
-        }
-        return returnValue;
-    }
-
-    /**
      * Extract lib to lib folder
-     *
-     * @param libFilePath
-     * @param osName
-     * @param libName
-     * @since 0.8
      */
-    private static boolean extractLib(String libFilePath, String osName, String libName) {
-        boolean returnValue = false;
-        File libFile = new File(libFilePath);
-        InputStream input = null;
-        FileOutputStream output = null;
-        input = SerialNativeInterface.class.getResourceAsStream("/libs/" + osName + "/" + libName);
-        if (input != null) {
+    private static void extractLib(String libFilePath, String osName, String libName) {
+        try (InputStream input = SerialNativeInterface.class.getResourceAsStream("/libs/" + osName + "/" + libName);
+             FileOutputStream output = new FileOutputStream(libFilePath)
+        ) {
             int read;
             byte[] buffer = new byte[4096];
-            try {
-                output = new FileOutputStream(libFilePath);
-                while ((read = input.read(buffer)) != -1) {
-                    output.write(buffer, 0, read);
-                }
-                output.close();
-                input.close();
-                returnValue = true;
-            } catch (Exception ex) {
-                try {
-                    output.close();
-                    if (libFile.exists()) {
-                        libFile.delete();
-                    }
-                } catch (Exception ex_out) {
-                    //Do nothing
-                }
-                try {
-                    input.close();
-                } catch (Exception ex_in) {
-                    //Do nothing
-                }
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
             }
+        } catch (IOException ex) {
+            try {
+                File libFile = new File(libFilePath);
+                if (libFile.exists()) {
+                    libFile.delete();
+                }
+            } catch(Exception exDelete) {
+                exDelete.printStackTrace();
+                // but continue
+            }
+            throw new RuntimeException(ex);
         }
-        return returnValue;
     }
 
     /**
      * Get OS type (OS_LINUX || OS_WINDOWS || OS_SOLARIS)
-     *
+     * @return one of the "OS_" constants
      * @since 0.8
      */
     public static int getOsType() {
         return osType;
-    }
-
-    /**
-     * Get jSSC version. The version of library is <b>Base Version</b> + <b>Minor Suffix</b>
-     *
-     * @since 0.8
-     */
-    public static String getLibraryVersion() {
-        return libVersion + "." + libMinorSuffix;
-    }
-
-    /**
-     * Get jSSC Base Version
-     *
-     * @since 0.9.0
-     */
-    public static String getLibraryBaseVersion() {
-        return libVersion;
-    }
-
-    /**
-     * Get jSSC minor suffix. For example in version 0.8.1 - <b>1</b> is a minor suffix
-     *
-     * @since 0.9.0
-     */
-    public static String getLibraryMinorSuffix() {
-        return libMinorSuffix;
     }
 
     /**

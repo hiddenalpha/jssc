@@ -30,7 +30,7 @@
 #include <time.h>
 #include <errno.h>//-D_TS_ERRNO use for Solaris C++ compiler
 
-#include <sys/select.h>//since 2.5.0
+#include <poll.h>
 
 #ifdef __linux__
     #include <linux/serial.h>
@@ -241,7 +241,7 @@ const jint PARAMS_FLAG_PARMRK = 2;
 JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setParams
   (JNIEnv *env, jobject object, jlong portHandle, jint baudRate, jint byteSize, jint stopBits, jint parity, jboolean setRTS, jboolean setDTR, jint flags){
     jboolean returnValue = JNI_FALSE;
-    
+   
     speed_t baudRateValue = getBaudRateByNum(baudRate);
     int dataBits = getDataBitsByNum(byteSize);
     
@@ -526,23 +526,37 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
 /*
  * Reading data from the port
  *
- * Rewrited in 2.5.0 (using select() function for correct block reading in MacOS X)
+ * Rewrited to use poll() instead of select() to handle fd>=1024
  */
 JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
   (JNIEnv *env, jobject object, jlong portHandle, jint byteCount){
-    fd_set read_fd_set;
+
+    struct pollfd fds[1];
+    fds[0].fd = portHandle;
+    fds[0].events = POLLIN;
+
     jbyte *lpBuffer = new jbyte[byteCount];
     int byteRemains = byteCount;
     while(byteRemains > 0) {
-        FD_ZERO(&read_fd_set);
-        FD_SET(portHandle, &read_fd_set);
-        select(portHandle + 1, &read_fd_set, NULL, NULL, NULL);
-        int result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
-        if(result > 0){
+        int result = poll(fds, 1, 1000);
+        if (result < 0) {
+            // TODO: use strerror(errno) for textual representation of errno
+            printf("Java_jssc_SerialNativeInterface_readBytes: poll() failed with errno=%d\n", errno);
+            delete lpBuffer;
+            return NULL;
+        }
+        result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
+        if (result < 0) {
+            printf("Java_jssc_SerialNativeInterface_readBytes: read() failed with errno=%d\n", errno);
+            delete lpBuffer;
+            return NULL;
+        } else if (result == 0) {
+            printf("Java_jssc_SerialNativeInterface_readBytes: read() returned 0. ignored\n"); 
+        } else {
             byteRemains -= result;
         }
     }
-    FD_CLR(portHandle, &read_fd_set);
+
     jbyteArray returnArray = env->NewByteArray(byteCount);
     env->SetByteArrayRegion(returnArray, 0, byteCount, lpBuffer);
     delete lpBuffer;
@@ -718,6 +732,20 @@ const jint events[] = {INTERRUPT_BREAK,
 JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
   (JNIEnv *env, jobject object, jlong portHandle) {
 
+//    struct timespec ts;
+//    clock_gettime(CLOCK_REALTIME, &ts);
+//    printf("%ld.%09ld\n", ts.tv_sec, ts.tv_nsec);
+//    fflush(stdout);
+
+    // we do the 'wait/sleep' within the EventLoop here in native code
+    // advantage: we can use poll() so we still return 'quickly' when new incomping bytes arrived
+    // only Events like CTS/DSR/RING etc.. are delayed up to 100 ms before they are delivered back to Java
+    // Note also that the 'wait 100 ms' leads to much less idle-CPU-load than the original 'sleep 1 ms' (in Java) where we hat ~10% idle load
+    struct pollfd fds[1]; // TODO: can be implemented without array, i.e. as simple/single struct
+    fds[0].fd = portHandle;
+    fds[0].events = POLLIN | POLLPRI | POLLRDHUP;
+    poll(fds, 1, 100);  // poll does not wait for serial-events like 'DCD line changed' or 'RI line changed' - so we need to work with a timeout
+
     jclass intClass = env->FindClass("[I");
     jobjectArray returnArray = env->NewObjectArray(sizeof(events)/sizeof(jint), intClass, NULL);
 
@@ -814,7 +842,7 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
             jintArray singleResultArray = env->NewIntArray(2);
             env->SetIntArrayRegion(singleResultArray, 0, 2, returnValues);
             env->SetObjectArrayElement(returnArray, i, singleResultArray);
-        };
+       };
     }
     return returnArray;
 }
