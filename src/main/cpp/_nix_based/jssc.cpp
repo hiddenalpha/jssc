@@ -540,6 +540,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     while(byteRemains > 0) {
         int result = poll(fds, 1, 1000);
         if (result < 0) {
+            // TODO: use strerror(errno) for textual representation of errno
             printf("Java_jssc_SerialNativeInterface_readBytes: poll() failed with errno=%d\n", errno);
             delete lpBuffer;
             return NULL;
@@ -551,7 +552,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
             return NULL;
         } else if (result == 0) {
             printf("Java_jssc_SerialNativeInterface_readBytes: read() returned 0. ignored\n"); 
-       } else {
+        } else {
             byteRemains -= result;
         }
     }
