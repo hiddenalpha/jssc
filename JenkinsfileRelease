@@ -31,7 +31,7 @@ node('isa-slaves-61') {
 
         step([$class: 'WsCleanup'])
 
-		sh "wget -O ./release-pipeline.groovy http://artifactory.pnet.ch/artifactory/libs-release-local/ch/post/it/common/jenkins/pipeline/00.03.00.04/pipeline-00.03.00.04.jar!jenkins-release-pipeline.groovy"
+		sh "wget -O ./release-pipeline.groovy https://artifactory.tools.post.ch/artifactory/libs-release-local/ch/post/it/common/jenkins/pipeline/00.03.00.04/pipeline-00.03.00.04.jar!jenkins-release-pipeline.groovy"
         commonReleasePipeline = load 'release-pipeline.groovy'
 
 		commonReleasePipeline.performRelease(PROJECT_NAME, SCM_URL, BRANCH_NAME, AUTO_MERGE, 'deploy', '-Pjenkins-deploy -Darguments="-Dmaven.javadoc.skip=true"', WORKSPACE, RELEASE_VERSION, null, 'paisarel@post.ch', true, "paisa-release-${PROJECT_NAME}")
