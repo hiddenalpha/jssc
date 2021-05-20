@@ -30,7 +30,7 @@
 #include <time.h>
 #include <errno.h>//-D_TS_ERRNO use for Solaris C++ compiler
 
-#include <sys/select.h>//since 2.5.0
+#include <poll.h>
 
 #ifdef __linux__
     #include <linux/serial.h>
@@ -527,23 +527,37 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
 /*
  * Reading data from the port
  *
- * Rewrited in 2.5.0 (using select() function for correct block reading in MacOS X)
+ * Rewritten to use poll() instead of select() to handle fd>=1024
  */
 JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
   (JNIEnv *env, jobject object, jlong portHandle, jint byteCount){
-    fd_set read_fd_set;
+
+    struct pollfd fds[1];
+    fds[0].fd = portHandle;
+    fds[0].events = POLLIN;
     jbyte *lpBuffer = new jbyte[byteCount];
     int byteRemains = byteCount;
+
     while(byteRemains > 0) {
-        FD_ZERO(&read_fd_set);
-        FD_SET(portHandle, &read_fd_set);
-        select(portHandle + 1, &read_fd_set, NULL, NULL, NULL);
-        int result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
-        if(result > 0){
+        int result = poll(fds, 1, 1000);
+        if (result < 0) {
+            // TODO: use strerror(errno) for textual representation of errno
+            printf("Java_jssc_SerialNativeInterface_readBytes: poll() failed with errno=%d\n", errno);
+            delete lpBuffer;
+            return NULL;
+        }
+        result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
+        if (result < 0) {
+            printf("Java_jssc_SerialNativeInterface_readBytes: read() failed with errno=%d\n", errno);
+            delete lpBuffer;
+            return NULL;
+        } else if (result == 0) {
+            printf("Java_jssc_SerialNativeInterface_readBytes: read() returned 0. ignored\n");
+        } else {
             byteRemains -= result;
         }
     }
-    FD_CLR(portHandle, &read_fd_set);
+
     jbyteArray returnArray = env->NewByteArray(byteCount);
     env->SetByteArrayRegion(returnArray, 0, byteCount, lpBuffer);
     delete lpBuffer;
