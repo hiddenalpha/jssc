@@ -734,6 +734,25 @@ const jint events[] = {INTERRUPT_BREAK,
 JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
   (JNIEnv *env, jobject object, jlong portHandle) {
 
+    // Just to print some debugging stuff (Author: oli-h)
+    //struct timespec ts;
+    //clock_gettime(CLOCK_REALTIME, &ts);
+    //printf("%ld.%09ld\n", ts.tv_sec, ts.tv_nsec);
+    //fflush(stdout);
+
+    // we do the 'wait/sleep' within the EventLoop here in native code. Advantage:
+    // we can use poll() so we still return 'quickly' when new incomping bytes
+    // arrived only Events like CTS/DSR/RING etc.. are delayed up to 100 ms before
+    // they are delivered back to Java. Note also that the 'wait 100 ms' leads to
+    // much less idle-CPU-load than the original 'sleep 1 ms' (in Java) where we
+    // hat ~10% idle load (Author: oli-h).
+    struct pollfd fds;
+    fds.fd = portHandle;
+    fds.events = POLLIN | POLLPRI | POLLRDHUP;
+    // poll does not wait for serial-events like 'DCD line changed' or 'RI line changed'.
+    // So we need to use a timeout.
+    poll(&fds, 1, 100);
+
     jclass intClass = env->FindClass("[I");
     jobjectArray returnArray = env->NewObjectArray(sizeof(events)/sizeof(jint), intClass, NULL);
 
