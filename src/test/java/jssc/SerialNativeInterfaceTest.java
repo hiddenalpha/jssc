@@ -1,5 +1,6 @@
 package jssc;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -12,6 +13,7 @@ public class SerialNativeInterfaceTest {
 
 
     @Test
+    @Ignore("Cannot run this test, as we have no lib for windoof and there's also no tty on windoof.")
     public void testInitNativeInterface() {
         SerialNativeInterface serial = new SerialNativeInterface();
 
@@ -27,6 +29,7 @@ public class SerialNativeInterfaceTest {
     }
 
     @Test
+    @Ignore("Cannot run this test, as we have no lib for windoof.")
     public void testPrintVersion() {
         try {
             final String nativeLibraryVersion = SerialNativeInterface.getNativeLibraryVersion();

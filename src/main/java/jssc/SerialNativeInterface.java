@@ -24,6 +24,9 @@
  */
 package jssc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.*;
 
 /**
@@ -166,9 +169,11 @@ public class SerialNativeInterface {
     }
 
     private static void extractLib(String libFilePath, String osName, String libName) {
-        try (InputStream input = SerialNativeInterface.class.getResourceAsStream("/libs/" + osName + "/" + libName);
-             FileOutputStream output = new FileOutputStream(libFilePath)
-        ) {
+        InputStream input = null;
+        FileOutputStream output = null;
+        try {
+            input = SerialNativeInterface.class.getResourceAsStream("/libs/" + osName + "/" + libName);
+            output = new FileOutputStream(libFilePath);
             int read;
             byte[] buffer = new byte[4096];
             while ((read = input.read(buffer)) != -1) {
@@ -185,6 +190,23 @@ public class SerialNativeInterface {
                 // but continue
             }
             throw new RuntimeException(ex);
+        }finally {
+            closeGracefully(output);
+            closeGracefully(input);
+        }
+    }
+
+    /**
+     * @param closeable
+     *      Can be null.
+     */
+    private static void closeGracefully(Closeable closeable) {
+        if (closeable == null) return;
+        Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
+        try {
+            closeable.close();
+        } catch (IOException e) {
+            logger.error("close() failed:", e);
         }
     }
 
