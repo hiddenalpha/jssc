@@ -32,9 +32,6 @@ import java.io.*;
  */
 public class SerialNativeInterface {
 
-    private static final String libVersion = "2.9";
-    private static final String libMinorSuffix = "1"; //since 0.9.0
-
     public static final int OS_LINUX = 0;
     public static final int OS_WINDOWS = 1;
     public static final int OS_SOLARIS = 2;//since 0.9.0
@@ -85,40 +82,45 @@ public class SerialNativeInterface {
         String libFolderPath;
         String libName;
 
-        String osName        = System.getProperty("os.name"          );
-        String architecture  = System.getProperty("os.arch"          );
-        String fileSeparator = System.getProperty("file.separator"   );
-        String libRootFolder = System.getProperty("java.io.tmpdir"   );
-        String javaLibPath   = System.getProperty("java.library.path");
+        String osName = System.getProperty("os.name");
+        String architecture = System.getProperty("os.arch");
+        String fileSeparator = System.getProperty("file.separator");
+        String libRootFolder = System.getProperty("java.io.tmpdir");
+        String javaLibPath = System.getProperty("java.library.path");
 
         if (osName.equals("Linux")) {
             osName = "linux";
             osType = OS_LINUX;
-        } else if (osName.startsWith("Win")) {
+        }
+        else if (osName.startsWith("Win")) {
             osName = "windows";
             osType = OS_WINDOWS;
         }//since 0.9.0 ->
         else if (osName.equals("SunOS")) {
             osName = "solaris";
             osType = OS_SOLARIS;
-        } else if (osName.equals("Mac OS X") || osName.equals("Darwin")) {//os.name "Darwin" since 2.6.0
+        }
+        else if (osName.equals("Mac OS X") || osName.equals("Darwin")) {//os.name "Darwin" since 2.6.0
             osName = "mac_os_x";
             osType = OS_MAC_OS_X;
         }//<- since 0.9.0
 
         if (architecture.equals("i386") || architecture.equals("i686")) {
             architecture = "x86";
-        } else if (architecture.equals("amd64") || architecture.equals("universal")) {//os.arch "universal" since 2.6.0
+        }
+        else if (architecture.equals("amd64") || architecture.equals("universal")) {//os.arch "universal" since 2.6.0
             architecture = "x86_64";
-        } else if (architecture.equals("arm")) {//since 2.1.0
+        }
+        else if (architecture.equals("arm")) {//since 2.1.0
             String floatStr = "sf";
             if (javaLibPath.toLowerCase().contains("gnueabihf") || javaLibPath.toLowerCase().contains("armhf")) {
                 floatStr = "hf";
-            } else {
+            }
+            else {
                 try {
                     Process readelfProcess = Runtime.getRuntime().exec("readelf -A /proc/self/exe");
                     BufferedReader reader = new BufferedReader(new InputStreamReader(readelfProcess.getInputStream()));
-                    String buffer = "";
+                    String buffer;
                     while ((buffer = reader.readLine()) != null && !buffer.isEmpty()) {
                         if (buffer.toLowerCase().contains("Tag_ABI_VFP_args".toLowerCase())) {
                             floatStr = "hf";
@@ -375,7 +377,7 @@ public class SerialNativeInterface {
     public native int[] getLinesStatus(long handle);
 
     /**
-     * Send Break singnal for setted duration
+     * Send Break signal for set duration
      * 
      * @param handle handle of opened port
      * @param duration duration of Break signal
