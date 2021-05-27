@@ -19,6 +19,7 @@ node('isa-slaves-61') {
 
         String workspace = pwd();
         String projectName = 'jssc';
+        String branchName = BRANCH_NAME;
         String vcsUrl = "https://gitit.post.ch/scm/isa/${projectName}.git";
         String serviceType = 'frontend';
         String additionalMvnGoals = "-Dcmake.generate.skip=true -Dcmake.compile.skip=true";
@@ -43,7 +44,7 @@ node('isa-slaves-61') {
         isaPipelineLib.LOGGER('slim profile', "true - empty dockerprofile")
 
         stage('checkout') {
-            checkoutSource(vcsUrl, branchName)
+            isaReleaseLib.checkoutSource(vcsUrl, branchName)
         }
 
         stage('validity checks') {
@@ -68,10 +69,10 @@ node('isa-slaves-61') {
                 isaPipelineLib.RTMAVEN.run pom: 'pom.xml', goals: mavenGoals, buildInfo: isaPipelineLib.BUILD_INFO
             }
 
-            tagAndCommit(projectName, vcsUrl, releaseVersion)
+            isaReleaseLib.tagAndCommit(projectName, vcsUrl, releaseVersion)
         }
 
-        saveArtifacts(projectName)
+        isaReleaseLib.saveArtifacts(projectName)
 
         stage('set/build snapshot') {
             isaPipelineLib.LOGGER('build snapshot', "That step is disable for this build")
