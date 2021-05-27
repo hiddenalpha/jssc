@@ -44,7 +44,7 @@ node('isa-slaves-61') {
         isaPipelineLib.LOGGER('slim profile', "true - empty dockerprofile")
 
         stage('checkout') {
-            isaReleaseLib.checkoutSource(vcsUrl, branchName)
+            checkoutSource(vcsUrl, branchName)
         }
 
         stage('validity checks') {
@@ -69,14 +69,50 @@ node('isa-slaves-61') {
                 isaPipelineLib.RTMAVEN.run pom: 'pom.xml', goals: mavenGoals, buildInfo: isaPipelineLib.BUILD_INFO
             }
 
-            isaReleaseLib.tagAndCommit(projectName, vcsUrl, releaseVersion)
+            tagAndCommit(projectName, vcsUrl, releaseVersion)
         }
 
-        isaReleaseLib.saveArtifacts(projectName)
+        saveArtifacts(projectName)
 
         stage('set/build snapshot') {
             isaPipelineLib.LOGGER('build snapshot', "That step is disable for this build")
         }
 
+    }
+}
+
+
+// Copy-pasta from "https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/browse/isa-release-pipeline.groovy?at=feb50dcd9bf465dca02f8f03a1729fed5780ff0e#196-201"
+def checkoutSource(gitUrl, branchName) {
+    isaPipelineLib.LOGGER('checkout', "${branchName} -> ${gitUrl}")
+    git branch: branchName, credentialsId: SCM_USER_ID, url: gitUrl
+    sh 'git config user.email "s-continuum@post.ch"'
+    sh 'git config user.name "s-continuum, IT265"'
+}
+
+// Copy-pasta from "https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/browse/isa-release-pipeline.groovy?at=feb50dcd9bf465dca02f8f03a1729fed5780ff0e#227-244"
+def tagAndCommit(projectName, gitUrl, releaseVersion) {
+    def pomName = "pom.xml"
+    if(isaPipelineLib.MAVEN_POM_NAME != '') {
+        pomName = isaPipelineLib.MAVEN_POM_NAME.replace('-f ', '')
+    }
+    // git add all changes / ignore-errors to avoid errors if no pom was found
+    sh "git clean -dfX" // remove ignored files, to avoid git error
+    sh "git add pom.xml **/pom.xml ${isaPipelineLib.MAVEN_POM_NAME} --ignore-errors"
+
+    // commit all changes and tag newest commit
+    sh "git commit -m 'merge release ${projectName}-${releaseVersion}'"
+    sh "git tag -af ${projectName}-${releaseVersion} -m 'tag by jenkins ci'"
+    withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: SCM_USER_ID, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS']]) {
+        def url = gitUrl.replace('https://', '')
+        sh "git push https://${GIT_USER}:${GIT_PASS}@${url} --all"
+        sh "git push https://${GIT_USER}:${GIT_PASS}@${url} --tags"
+    }
+}
+
+// Copy-pasta from "https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/browse/isa-release-pipeline.groovy?at=feb50dcd9bf465dca02f8f03a1729fed5780ff0e#361-365"
+public saveArtifacts(projectName) {
+    stage('archive artifacts') {
+        isaPipelineLib.saveArtifacts(projectName, 'release')
     }
 }
