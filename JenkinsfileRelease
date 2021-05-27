@@ -31,11 +31,11 @@ node('isa-slaves-61') {
 
         step([$class: 'WsCleanup']);
 
-        sh "wget -O ./isa-release-pipeline.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-release-pipeline.groovy?at=master";
-        env.isaReleaseLib = load 'isa-release-pipeline.groovy';
-
         sh "wget -O ./isa-pipeline-lib.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-pipeline-lib.groovy"
-        env.isaPipelineLib = load 'isa-pipeline-lib.groovy'
+        isaPipelineLib = load 'isa-pipeline-lib.groovy'
+
+        sh "wget -O ./isa-release-pipeline.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-release-pipeline.groovy?at=master";
+        isaReleaseLib = load 'isa-release-pipeline.groovy';
 
         if(releaseVersion.length() < 1) {
             error "no release version was given - please set this parameter!"
