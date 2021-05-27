@@ -16,13 +16,13 @@ extern "C" {
 #undef jssc_SerialNativeInterface_OS_MAC_OS_X
 #define jssc_SerialNativeInterface_OS_MAC_OS_X 3L
 #undef jssc_SerialNativeInterface_ERR_PORT_BUSY
-#define jssc_SerialNativeInterface_ERR_PORT_BUSY -1i64
+#define jssc_SerialNativeInterface_ERR_PORT_BUSY -1LL
 #undef jssc_SerialNativeInterface_ERR_PORT_NOT_FOUND
-#define jssc_SerialNativeInterface_ERR_PORT_NOT_FOUND -2i64
+#define jssc_SerialNativeInterface_ERR_PORT_NOT_FOUND -2LL
 #undef jssc_SerialNativeInterface_ERR_PERMISSION_DENIED
-#define jssc_SerialNativeInterface_ERR_PERMISSION_DENIED -3i64
+#define jssc_SerialNativeInterface_ERR_PERMISSION_DENIED -3LL
 #undef jssc_SerialNativeInterface_ERR_INCORRECT_SERIAL_PORT
-#define jssc_SerialNativeInterface_ERR_INCORRECT_SERIAL_PORT -4i64
+#define jssc_SerialNativeInterface_ERR_INCORRECT_SERIAL_PORT -4LL
 /*
  * Class:     jssc_SerialNativeInterface
  * Method:    getNativeLibraryVersion
