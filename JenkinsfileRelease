@@ -1,0 +1,40 @@
+properties([
+    buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '10')),
+    parameters([
+        string(
+            name: 'RELEASE_VERSION',
+            defaultValue: '',
+            description: 'Version to release (eg: 0.0.0-paisa.java11.42)'
+        ),
+        string(
+            name: 'BRANCH_NAME',
+            defaultValue: 'develop',
+            description: 'Branch to release.'
+        )
+    ])
+])
+
+node('isa-slaves-61') {
+    timestamps {
+
+        String workspace = pwd();
+        String projectName = 'jssc';
+        String vcsUrl = "https://gitit.post.ch/scm/isa/${projectName}.git";
+        boolean platformService = false;
+        boolean dockerProfile = false;
+        boolean slimProfile = true;
+        String serviceType = 'frontend';
+        String additionalMvnGoals = "-Dcmake.generate.skip=true -Dcmake.compile.skip=true";
+
+        // Setup environment.
+        env.PATH = "${tool 'maven-3.2.5'}/bin:${env.PATH}";
+        env.JAVA_HOME  = "${tool 'jdk-11.0.11'}";
+
+        sh "wget -O ./isa-release-pipeline.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-release-pipeline.groovy?at=master";
+        def isaReleaseLib = load 'isa-release-pipeline.groovy';
+
+        step([$class: 'WsCleanup']);
+
+        isaReleaseLib.performRelease(projectName, vcsUrl, BRANCH_NAME, false, workspace, RELEASE_VERSION, platformService, dockerProfile, slimProfile, serviceType, null, null, null, additionalMvnGoals);
+    }
+}

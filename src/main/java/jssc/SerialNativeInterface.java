@@ -24,18 +24,16 @@
  */
 package jssc;
 
-import org.scijava.nativelib.NativeLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.*;
 
 /**
  *
  * @author scream3r
  */
 public class SerialNativeInterface {
-
-    private static final String libVersion = "2.9";
-    private static final String libMinorSuffix = "1"; //since 0.9.0
 
     public static final int OS_LINUX = 0;
     public static final int OS_WINDOWS = 1;
@@ -75,56 +73,150 @@ public class SerialNativeInterface {
     public static final String PROPERTY_JSSC_PARMRK = "JSSC_PARMRK";
 
     static {
-        String osName = System.getProperty("os.name");
-        if(osName.equals("Linux"))
+        boolean success = tryLoad("/jssc-dev/jssc.so");
+        if(success) {
             osType = OS_LINUX;
-        else if(osName.startsWith("Win"))
+        } else  {
+            defaultLoad();
+        }
+    }
+
+    private static void defaultLoad() {
+        String libFolderPath;
+        String libName;
+
+        String osName = System.getProperty("os.name");
+        String architecture = System.getProperty("os.arch");
+        String fileSeparator = System.getProperty("file.separator");
+        String libRootFolder = System.getProperty("java.io.tmpdir");
+        String javaLibPath = System.getProperty("java.library.path");
+
+        if (osName.equals("Linux")) {
+            osName = "linux";
+            osType = OS_LINUX;
+        }
+        else if (osName.startsWith("Win")) {
+            osName = "windows";
             osType = OS_WINDOWS;
-        else if(osName.equals("SunOS"))
+        }//since 0.9.0 ->
+        else if (osName.equals("SunOS")) {
+            osName = "solaris";
             osType = OS_SOLARIS;
-        else if(osName.equals("Mac OS X") || osName.equals("Darwin"))
+        }
+        else if (osName.equals("Mac OS X") || osName.equals("Darwin")) {//os.name "Darwin" since 2.6.0
+            osName = "mac_os_x";
             osType = OS_MAC_OS_X;
+        }//<- since 0.9.0
+
+        if (architecture.equals("i386") || architecture.equals("i686")) {
+            architecture = "x86";
+        }
+        else if (architecture.equals("amd64") || architecture.equals("universal")) {//os.arch "universal" since 2.6.0
+            architecture = "x86_64";
+        }
+        else if (architecture.equals("arm")) {//since 2.1.0
+            String floatStr = "sf";
+            if (javaLibPath.toLowerCase().contains("gnueabihf") || javaLibPath.toLowerCase().contains("armhf")) {
+                floatStr = "hf";
+            }
+            else {
+                try {
+                    Process readelfProcess = Runtime.getRuntime().exec("readelf -A /proc/self/exe");
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(readelfProcess.getInputStream()));
+                    String buffer;
+                    while ((buffer = reader.readLine()) != null && !buffer.isEmpty()) {
+                        if (buffer.toLowerCase().contains("Tag_ABI_VFP_args".toLowerCase())) {
+                            floatStr = "hf";
+                            break;
+                        }
+                    }
+                    reader.close();
+                } catch (Exception ex) {
+                    //Do nothing
+                }
+            }
+            architecture = "arm" + floatStr;
+        }
+
+        libFolderPath = libRootFolder + fileSeparator + ".jssc" + fileSeparator + osName;
+        libName = "jSSC_" + architecture;
+        libName = System.mapLibraryName(libName);
+
+        if (libName.endsWith(".dylib")) {//Since 2.1.0 MacOSX 10.8 fix
+            libName = libName.replace(".dylib", ".jnilib");
+        }
+
+        new File(libFolderPath).mkdirs();
+        extractLib((libFolderPath + fileSeparator + libName), osName, libName);
+        tryLoad(libFolderPath + fileSeparator + libName);
+    }
+
+    private static boolean tryLoad(String filename) {
         try {
-            NativeLoader.loadLibrary("jssc");
-        } catch (IOException ioException) {
-            throw new UnsatisfiedLinkError("Could not load the jssc library: " + ioException.getMessage());
+            if (!new File(filename).exists()) {
+                System.err.println("JSSC: File " + filename + "does not exist --> will not try to load");
+                return false;
+            }
+            System.out.println("JSSC: Try to load " + filename);
+            System.load(filename);
+            System.out.println("JSSC: Loading " + filename + " successful");
+            return true;
+        } catch (Throwable ex) {
+            System.err.println("JSSC: Loading " + filename + " failed");
+            ex.printStackTrace();
+            return false;
+        }
+    }
+
+    private static void extractLib(String libFilePath, String osName, String libName) {
+        InputStream input = null;
+        FileOutputStream output = null;
+        try {
+            input = SerialNativeInterface.class.getResourceAsStream("/libs/" + osName + "/" + libName);
+            output = new FileOutputStream(libFilePath);
+            int read;
+            byte[] buffer = new byte[4096];
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+        } catch (IOException ex) {
+            try {
+                File libFile = new File(libFilePath);
+                if (libFile.exists()) {
+                    libFile.delete();
+                }
+            } catch(Exception exDelete) {
+                exDelete.printStackTrace();
+                // but continue
+            }
+            throw new RuntimeException(ex);
+        }finally {
+            closeGracefully(output);
+            closeGracefully(input);
+        }
+    }
+
+    /**
+     * @param closeable
+     *      Can be null.
+     */
+    private static void closeGracefully(Closeable closeable) {
+        if (closeable == null) return;
+        Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
+        try {
+            closeable.close();
+        } catch (IOException e) {
+            logger.error("close() failed:", e);
         }
     }
 
     /**
      * Get OS type (OS_LINUX || OS_WINDOWS || OS_SOLARIS)
-     * 
+     *
      * @since 0.8
      */
     public static int getOsType() {
         return osType;
-    }
-
-    /**
-     * Get jSSC version. The version of library is <b>Base Version</b> + <b>Minor Suffix</b>
-     *
-     * @since 0.8
-     */
-    public static String getLibraryVersion() {
-        return libVersion + "." + libMinorSuffix;
-    }
-
-    /**
-     * Get jSSC Base Version
-     *
-     * @since 0.9.0
-     */
-    public static String getLibraryBaseVersion() {
-        return libVersion;
-    }
-
-    /**
-     * Get jSSC minor suffix. For example in version 0.8.1 - <b>1</b> is a minor suffix
-     *
-     * @since 0.9.0
-     */
-    public static String getLibraryMinorSuffix() {
-        return libMinorSuffix;
     }
 
     /**
@@ -307,7 +399,7 @@ public class SerialNativeInterface {
     public native int[] getLinesStatus(long handle);
 
     /**
-     * Send Break singnal for setted duration
+     * Send Break signal for set duration
      * 
      * @param handle handle of opened port
      * @param duration duration of Break signal
