@@ -20,21 +20,62 @@ node('isa-slaves-61') {
         String workspace = pwd();
         String projectName = 'jssc';
         String vcsUrl = "https://gitit.post.ch/scm/isa/${projectName}.git";
-        boolean platformService = false;
-        boolean dockerProfile = false;
-        boolean slimProfile = true;
         String serviceType = 'frontend';
         String additionalMvnGoals = "-Dcmake.generate.skip=true -Dcmake.compile.skip=true";
+        String releaseVersion = RELEASE_VERSION;
 
         // Setup environment.
         env.PATH = "${tool 'maven-3.2.5'}/bin:${env.PATH}";
         env.JAVA_HOME  = "${tool 'jdk-11.0.11'}";
 
+        step([$class: 'WsCleanup']);
+
         sh "wget -O ./isa-release-pipeline.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-release-pipeline.groovy?at=master";
         def isaReleaseLib = load 'isa-release-pipeline.groovy';
 
-        step([$class: 'WsCleanup']);
+        sh "wget -O ./isa-pipeline-lib.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-pipeline-lib.groovy"
+        def isaPipelineLib = load 'isa-pipeline-lib.groovy'
 
-        isaReleaseLib.performRelease(projectName, vcsUrl, BRANCH_NAME, false, workspace, RELEASE_VERSION, platformService, dockerProfile, slimProfile, serviceType, null, null, null, additionalMvnGoals);
+        if(releaseVersion.length() < 1) {
+            error "no release version was given - please set this parameter!"
+        }
+
+        isaPipelineLib.LOGGER('slim profile', "true - empty dockerprofile")
+
+        stage('checkout') {
+            checkoutSource(vcsUrl, branchName)
+        }
+
+        stage('validity checks') {
+            NEW_SNAPHOST_VERSION = getNewSnapshotVersion(releaseVersion)
+
+            isaPipelineLib.LOGGER('service version', "set new service version ${releaseVersion} in pom!")
+            sh "mvn ${isaPipelineLib.MAVEN_POM_NAME} -B versions:set -DnewVersion=${releaseVersion}"
+            sh "mvn ${isaPipelineLib.MAVEN_POM_NAME} -B versions:commit"
+        }
+
+        stage('release') {
+            withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: DOCKER_USER_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS']]) {
+                sh "docker login --username=$DOCKER_USER --password=$DOCKER_PASS docker.tools.pnet.ch"
+            }
+
+            def mavenGoals = 'clean source:jar deploy -Pslim -DsnapshotDependencyAllowed=false -DupdateReleaseInfo=true -U'
+            mavenGoals = mavenGoals + " " + additionalMvnGoals
+
+            if(isaPipelineLib.MAVEN_POM_NAME.size() > 0) {
+                isaPipelineLib.RTMAVEN.run pom: isaPipelineLib.MAVEN_POM_NAME.replace('-f ', ''), goals: "${mavenGoals}", buildInfo: isaPipelineLib.BUILD_INFO
+            } else {
+                isaPipelineLib.RTMAVEN.run pom: 'pom.xml', goals: mavenGoals, buildInfo: isaPipelineLib.BUILD_INFO
+            }
+
+            tagAndCommit(projectName, vcsUrl, releaseVersion)
+        }
+
+        saveArtifacts(projectName)
+
+        stage('set/build snapshot') {
+            isaPipelineLib.LOGGER('build snapshot', "That step is disable for this build")
+        }
+
     }
 }
