@@ -1,118 +1,39 @@
 properties([
-    buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '10')),
     parameters([
-        string(
-            name: 'RELEASE_VERSION',
-            defaultValue: '',
-            description: 'Version to release (eg: 0.0.0-paisa.java11.42)'
+        booleanParam(
+            defaultValue: true,
+            description: 'Auto merge given branch into master.',
+            name: 'AUTO_MERGE'
         ),
         string(
-            name: 'BRANCH_NAME',
             defaultValue: 'develop',
-            description: 'Branch to release.'
+            description: 'Set branch to release.',
+            name: 'BRANCH_NAME'
+        ),
+        string(
+            defaultValue: '',
+            description: 'Set release version.',
+            name: 'RELEASE_VERSION'
         )
-    ])
+    ]),
+    buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '20'))
 ])
 
 node('isa-slaves-61') {
     timestamps {
+        env.PATH = "${tool 'maven-3.2.5'}/bin:${env.PATH}"
+        env.JAVA_HOME  = "${tool 'JDK 1.8'}"
 
-        String workspace = pwd();
-        String projectName = 'jssc';
-        String branchName = BRANCH_NAME;
-        String vcsUrl = "https://gitit.post.ch/scm/isa/${projectName}.git";
-        String serviceType = 'frontend';
-        String additionalMvnGoals = "-Dcmake.generate.skip=true -Dcmake.compile.skip=true";
-        String releaseVersion = RELEASE_VERSION;
+        currentBuild.result = 'SUCCESS'
+        WORKSPACE = pwd()
+        PROJECT_NAME = 'jssc'
+        SCM_URL = "https://gitit.post.ch/scm/isa/${PROJECT_NAME}.git"
 
-        // Setup environment.
-        env.PATH = "${tool 'maven-3.2.5'}/bin:${env.PATH}";
-        env.JAVA_HOME  = "${tool 'jdk-11.0.11'}";
+        step([$class: 'WsCleanup'])
 
-        step([$class: 'WsCleanup']);
+		sh "wget -O ./release-pipeline.groovy https://artifactory.tools.post.ch/artifactory/libs-release-local/ch/post/it/common/jenkins/pipeline/00.03.00.04/pipeline-00.03.00.04.jar!jenkins-release-pipeline.groovy"
+        commonReleasePipeline = load 'release-pipeline.groovy'
 
-        sh "wget -O ./isa-pipeline-lib.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-pipeline-lib.groovy"
-        isaPipelineLib = load 'isa-pipeline-lib.groovy'
-
-        sh "wget -O ./isa-release-pipeline.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-release-pipeline.groovy?at=master";
-        isaReleaseLib = load 'isa-release-pipeline.groovy';
-
-        if(releaseVersion.length() < 1) {
-            error "no release version was given - please set this parameter!"
-        }
-
-        isaPipelineLib.LOGGER('slim profile', "true - empty dockerprofile")
-
-        stage('checkout') {
-            checkoutSource(vcsUrl, branchName)
-        }
-
-        stage('validity checks') {
-            NEW_SNAPHOST_VERSION = getNewSnapshotVersion(releaseVersion)
-
-            isaPipelineLib.LOGGER('service version', "set new service version ${releaseVersion} in pom!")
-            sh "mvn ${isaPipelineLib.MAVEN_POM_NAME} -B versions:set -DnewVersion=${releaseVersion}"
-            sh "mvn ${isaPipelineLib.MAVEN_POM_NAME} -B versions:commit"
-        }
-
-        stage('release') {
-            withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: DOCKER_USER_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS']]) {
-                sh "docker login --username=$DOCKER_USER --password=$DOCKER_PASS docker.tools.pnet.ch"
-            }
-
-            def mavenGoals = 'clean source:jar deploy -Pslim -DsnapshotDependencyAllowed=false -DupdateReleaseInfo=true -U'
-            mavenGoals = mavenGoals + " " + additionalMvnGoals
-
-            if(isaPipelineLib.MAVEN_POM_NAME.size() > 0) {
-                isaPipelineLib.RTMAVEN.run pom: isaPipelineLib.MAVEN_POM_NAME.replace('-f ', ''), goals: "${mavenGoals}", buildInfo: isaPipelineLib.BUILD_INFO
-            } else {
-                isaPipelineLib.RTMAVEN.run pom: 'pom.xml', goals: mavenGoals, buildInfo: isaPipelineLib.BUILD_INFO
-            }
-
-            tagAndCommit(projectName, vcsUrl, releaseVersion)
-        }
-
-        saveArtifacts(projectName)
-
-        stage('set/build snapshot') {
-            isaPipelineLib.LOGGER('build snapshot', "That step is disable for this build")
-        }
-
-    }
-}
-
-
-// Copy-pasta from "https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/browse/isa-release-pipeline.groovy?at=feb50dcd9bf465dca02f8f03a1729fed5780ff0e#196-201"
-def checkoutSource(gitUrl, branchName) {
-    isaPipelineLib.LOGGER('checkout', "${branchName} -> ${gitUrl}")
-    git branch: branchName, credentialsId: SCM_USER_ID, url: gitUrl
-    sh 'git config user.email "s-continuum@post.ch"'
-    sh 'git config user.name "s-continuum, IT265"'
-}
-
-// Copy-pasta from "https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/browse/isa-release-pipeline.groovy?at=feb50dcd9bf465dca02f8f03a1729fed5780ff0e#227-244"
-def tagAndCommit(projectName, gitUrl, releaseVersion) {
-    def pomName = "pom.xml"
-    if(isaPipelineLib.MAVEN_POM_NAME != '') {
-        pomName = isaPipelineLib.MAVEN_POM_NAME.replace('-f ', '')
-    }
-    // git add all changes / ignore-errors to avoid errors if no pom was found
-    sh "git clean -dfX" // remove ignored files, to avoid git error
-    sh "git add pom.xml **/pom.xml ${isaPipelineLib.MAVEN_POM_NAME} --ignore-errors"
-
-    // commit all changes and tag newest commit
-    sh "git commit -m 'merge release ${projectName}-${releaseVersion}'"
-    sh "git tag -af ${projectName}-${releaseVersion} -m 'tag by jenkins ci'"
-    withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: SCM_USER_ID, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS']]) {
-        def url = gitUrl.replace('https://', '')
-        sh "git push https://${GIT_USER}:${GIT_PASS}@${url} --all"
-        sh "git push https://${GIT_USER}:${GIT_PASS}@${url} --tags"
-    }
-}
-
-// Copy-pasta from "https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/browse/isa-release-pipeline.groovy?at=feb50dcd9bf465dca02f8f03a1729fed5780ff0e#361-365"
-public saveArtifacts(projectName) {
-    stage('archive artifacts') {
-        isaPipelineLib.saveArtifacts(projectName, 'release')
+		commonReleasePipeline.performRelease(PROJECT_NAME, SCM_URL, BRANCH_NAME, AUTO_MERGE, 'deploy', '-Pjenkins-deploy -Darguments="-Dmaven.javadoc.skip=true"', WORKSPACE, RELEASE_VERSION, null, 'paisarel@post.ch', true, "paisa-release-${PROJECT_NAME}")
     }
 }
