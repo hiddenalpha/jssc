@@ -22,7 +22,7 @@ properties([
 node('isa-slaves-61') {
     timestamps {
         env.PATH = "${tool 'maven-3.2.5'}/bin:${env.PATH}"
-        env.JAVA_HOME  = "${tool 'JDK 1.8'}"
+        env.JAVA_HOME  = "${tool 'jdk-11.0.11'}"
 
         currentBuild.result = 'SUCCESS'
         WORKSPACE = pwd()
