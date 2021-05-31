@@ -1,40 +1,44 @@
 properties([
-    buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '10')),
-    parameters([
-        string(
-            name: 'RELEASE_VERSION',
-            defaultValue: '',
-            description: 'Version to release (eg: 0.0.0-paisa.java11.42)'
-        ),
-        string(
-            name: 'BRANCH_NAME',
-            defaultValue: 'develop',
-            description: 'Branch to release.'
-        )
-    ])
+        parameters([
+                booleanParam(
+                        defaultValue: true,
+                        description: 'Auto merge given branch into master.',
+                        name: 'AUTO_MERGE'
+                ),
+                string(
+                        defaultValue: 'develop',
+                        description: 'Set branch to release.',
+                        name: 'BRANCH_NAME'
+                ),
+                string(
+                        defaultValue: '',
+                        description: 'Set release version.',
+                        name: 'RELEASE_VERSION'
+                )
+        ]),
+        buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '20'))
 ])
 
 node('isa-slaves-61') {
     timestamps {
+        env.PATH = "${tool 'maven-3.2.5'}/bin:${env.PATH}"
+        env.JAVA_HOME  = "${tool 'jdk-11.0.11'}"
 
-        String workspace = pwd();
-        String projectName = 'jssc';
-        String vcsUrl = "https://gitit.post.ch/scm/isa/${projectName}.git";
-        boolean platformService = false;
-        boolean dockerProfile = false;
-        boolean slimProfile = true;
-        String serviceType = 'frontend';
-        String additionalMvnGoals = "-Dcmake.generate.skip=true -Dcmake.compile.skip=true";
+        currentBuild.result = 'SUCCESS'
+        WORKSPACE = pwd()
+        PROJECT_NAME = 'jssc'
+        SCM_URL = "https://gitit.post.ch/scm/isa/${PROJECT_NAME}.git"
 
-        // Setup environment.
-        env.PATH = "${tool 'maven-3.2.5'}/bin:${env.PATH}";
-        env.JAVA_HOME  = "${tool 'jdk-11.0.11'}";
+        step([$class: 'WsCleanup'])
 
-        sh "wget -O ./isa-release-pipeline.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-release-pipeline.groovy?at=master";
-        def isaReleaseLib = load 'isa-release-pipeline.groovy';
+        sh "wget -O ./release-pipeline.groovy https://artifactory.tools.post.ch/artifactory/libs-release-local/ch/post/it/common/jenkins/pipeline/00.03.00.04/pipeline-00.03.00.04.jar!jenkins-release-pipeline.groovy"
+        commonReleasePipeline = load 'release-pipeline.groovy'
+        commonReleasePipeline.commonBuildPipeline.checkoutSource(PROJECT_NAME, SCM_URL, BRANCH_NAME)
 
-        step([$class: 'WsCleanup']);
 
-        isaReleaseLib.performRelease(projectName, vcsUrl, BRANCH_NAME, false, workspace, RELEASE_VERSION, platformService, dockerProfile, slimProfile, serviceType, null, null, null, additionalMvnGoals);
+        sh "mvn -B versions:set -DnewVersion=${RELEASE_VERSION}"
+        sh "mvn -B versions:commit"
+
+        sh "mvn clean deploy -DskipTests=true -Dcmake.generate.skip=true -Dcmake.compile.skip=true -DsnapshotDependencyAllowed=false -DupdateReleaseInfo=true -U clean deploy"
     }
 }

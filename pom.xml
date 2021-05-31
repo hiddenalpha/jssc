@@ -6,7 +6,7 @@
 
   <groupId>io.github.java-native</groupId>
   <artifactId>jssc</artifactId>
-  <version>2.9.3-SNAPSHOT</version>
+  <version>2.9.3-paisa.java11.3-SNAPSHOT</version>
 
   <name>Java Simple Serial Connector</name>
   <description>
@@ -75,6 +75,21 @@
     <plugin.source.version>3.0.1</plugin.source.version>
     <plugin.compiler.version>3.8.0</plugin.compiler.version>
   </properties>
+
+  <distributionManagement>
+    <repository>
+      <id>artifactory-releases</id>
+      <name>artifactory.pnet.ch-releases</name>
+      <url>https://artifactory.tools.post.ch/artifactory/libs-release-local</url>
+      <uniqueVersion>true</uniqueVersion>
+    </repository>
+    <snapshotRepository>
+      <id>artifactory-snapshots</id>
+      <name>artifactory.pnet.ch-snapshots</name>
+      <url>https://artifactory.tools.post.ch/artifactory/libs-snapshot-local</url>
+      <uniqueVersion>false</uniqueVersion>
+    </snapshotRepository>
+  </distributionManagement>
 
   <dependencies>
     <dependency>
@@ -163,72 +178,6 @@
                   <message>Current JDK does not support target version 6. Minimal JRE to use the library on is ${target.java.version}.</message>
                 </requireJavaVersion>
               </rules>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- create header file jdk<=8 -->
-      <plugin>
-        <groupId>com.github.maven-nar</groupId>
-        <artifactId>nar-maven-plugin</artifactId>
-        <version>${plugin.nar.version}</version>
-        <extensions>true</extensions>
-        <executions>
-          <execution>
-            <id>default-nar-javah</id>
-            <goals>
-              <goal>nar-javah</goal>
-            </goals>
-            <phase>compile</phase>
-            <configuration>
-              <skip>${javah.skip}</skip>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- execute cmake -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-antrun-plugin</artifactId>
-        <version>${plugin.antrun.version}</version>
-
-        <executions>
-          <execution>
-            <id>cmake-generate</id>
-            <goals><goal>run</goal></goals>
-            <phase>generate-sources</phase>
-            <configuration>
-              <skip>${cmake.generate.skip}</skip>
-              <target name="cmake-generate">
-                <mkdir dir="${cmake.generated.directory}"/>
-                <exec executable="cmake" dir="${cmake.generated.directory}" failonerror="true">
-                  <arg line="${project.basedir}"/>
-                  <arg line="${cmake.generate.args}"/>
-                  <arg line="${cmake.generate.extra}"/>
-                </exec>
-              </target>
-            </configuration>
-          </execution>
-
-          <execution>
-            <id>cmake-compile</id>
-            <goals><goal>run</goal></goals>
-            <phase>compile</phase>
-            <configuration>
-              <skip>${cmake.compile.skip}</skip>
-              <target name="cmake-build">
-                <!-- copy header jdk<=8 -->
-                <copy todir="${cmake.generated.directory}" flatten="true" overwrite="true" verbose="true" failonerror="false">
-                  <fileset dir="${project.build.directory}/nar/" includes="**/*.h"/>
-                </copy>
-                <exec executable="cmake" dir="${cmake.generated.directory}" failonerror="true">
-                  <arg line="--build"/>
-                  <arg line="."/>
-                  <arg line="${cmake.build.args}"/>
-                </exec>
-              </target>
             </configuration>
           </execution>
         </executions>

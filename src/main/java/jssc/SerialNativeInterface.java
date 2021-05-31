@@ -82,73 +82,31 @@ public class SerialNativeInterface {
     }
 
     private static void defaultLoad() {
-        String libFolderPath;
-        String libName;
 
         String osName = System.getProperty("os.name");
-        String architecture = System.getProperty("os.arch");
-        String fileSeparator = System.getProperty("file.separator");
-        String libRootFolder = System.getProperty("java.io.tmpdir");
-        String javaLibPath = System.getProperty("java.library.path");
 
         if (osName.equals("Linux")) {
-            osName = "linux";
+            osName = "linux_64";
             osType = OS_LINUX;
         }
         else if (osName.startsWith("Win")) {
-            osName = "windows";
+            osName = "windows_64";
             osType = OS_WINDOWS;
         }//since 0.9.0 ->
-        else if (osName.equals("SunOS")) {
-            osName = "solaris";
-            osType = OS_SOLARIS;
-        }
         else if (osName.equals("Mac OS X") || osName.equals("Darwin")) {//os.name "Darwin" since 2.6.0
-            osName = "mac_os_x";
+            osName = "osx_64";
             osType = OS_MAC_OS_X;
         }//<- since 0.9.0
-
-        if (architecture.equals("i386") || architecture.equals("i686")) {
-            architecture = "x86";
-        }
-        else if (architecture.equals("amd64") || architecture.equals("universal")) {//os.arch "universal" since 2.6.0
-            architecture = "x86_64";
-        }
-        else if (architecture.equals("arm")) {//since 2.1.0
-            String floatStr = "sf";
-            if (javaLibPath.toLowerCase().contains("gnueabihf") || javaLibPath.toLowerCase().contains("armhf")) {
-                floatStr = "hf";
-            }
-            else {
-                try {
-                    Process readelfProcess = Runtime.getRuntime().exec("readelf -A /proc/self/exe");
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(readelfProcess.getInputStream()));
-                    String buffer;
-                    while ((buffer = reader.readLine()) != null && !buffer.isEmpty()) {
-                        if (buffer.toLowerCase().contains("Tag_ABI_VFP_args".toLowerCase())) {
-                            floatStr = "hf";
-                            break;
-                        }
-                    }
-                    reader.close();
-                } catch (Exception ex) {
-                    //Do nothing
-                }
-            }
-            architecture = "arm" + floatStr;
+        else{
+            System.err.println("Whops. Sorry not impl yet (E_oiurtghjaoeir)");
+            throw new RuntimeException("Whops. Sorry not impl yet");
         }
 
-        libFolderPath = libRootFolder + fileSeparator + ".jssc" + fileSeparator + osName;
-        libName = "jSSC_" + architecture;
-        libName = System.mapLibraryName(libName);
-
-        if (libName.endsWith(".dylib")) {//Since 2.1.0 MacOSX 10.8 fix
-            libName = libName.replace(".dylib", ".jnilib");
-        }
-
-        new File(libFolderPath).mkdirs();
-        extractLib((libFolderPath + fileSeparator + libName), osName, libName);
-        tryLoad(libFolderPath + fileSeparator + libName);
+        String libName = System.mapLibraryName("jssc");
+        String libFilePath = System.getProperty("java.io.tmpdir") + System.getProperty("file.separator") + libName;
+        new File(libFilePath).getParentFile().mkdirs();
+        extractLib(libFilePath, osName, libName);
+        tryLoad(libFilePath);
     }
 
     private static boolean tryLoad(String filename) {
@@ -159,7 +117,7 @@ public class SerialNativeInterface {
             }
             System.out.println("JSSC: Try to load " + filename);
             System.load(filename);
-            System.out.println("JSSC: Loading " + filename + " successful");
+            System.out.println("JSSC: Successfully loaded " + filename + ". Version is " + getNativeLibraryVersion());
             return true;
         } catch (Throwable ex) {
             System.err.println("JSSC: Loading " + filename + " failed");
@@ -172,7 +130,7 @@ public class SerialNativeInterface {
         InputStream input = null;
         FileOutputStream output = null;
         try {
-            input = SerialNativeInterface.class.getResourceAsStream("/libs/" + osName + "/" + libName);
+            input = SerialNativeInterface.class.getResourceAsStream("/natives/" + osName + "/" + libName);
             output = new FileOutputStream(libFilePath);
             int read;
             byte[] buffer = new byte[4096];
@@ -202,10 +160,10 @@ public class SerialNativeInterface {
      */
     private static void closeGracefully(Closeable closeable) {
         if (closeable == null) return;
-        Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
         try {
             closeable.close();
         } catch (IOException e) {
+            Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
             logger.error("close() failed:", e);
         }
     }
