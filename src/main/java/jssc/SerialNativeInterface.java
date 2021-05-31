@@ -82,8 +82,6 @@ public class SerialNativeInterface {
     }
 
     private static void defaultLoad() {
-        //String libFolderPath;
-        //String libName;
 
         String osName = System.getProperty("os.name");
 
@@ -119,7 +117,7 @@ public class SerialNativeInterface {
             }
             System.out.println("JSSC: Try to load " + filename);
             System.load(filename);
-            System.out.println("JSSC: Loading " + filename + " successful");
+            System.out.println("JSSC: Successfully loaded " + filename + ". Version is " + getNativeLibraryVersion());
             return true;
         } catch (Throwable ex) {
             System.err.println("JSSC: Loading " + filename + " failed");
@@ -162,10 +160,10 @@ public class SerialNativeInterface {
      */
     private static void closeGracefully(Closeable closeable) {
         if (closeable == null) return;
-        Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
         try {
             closeable.close();
         } catch (IOException e) {
+            Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
             logger.error("close() failed:", e);
         }
     }
