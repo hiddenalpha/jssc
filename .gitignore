@@ -36,3 +36,5 @@ target/
 
 # IDE files: eclipse
 .settings/
+
+/src/main/cpp/version.h
