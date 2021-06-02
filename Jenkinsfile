@@ -5,7 +5,7 @@ properties([
 node('isa-slaves-61') {
     timestamps {
         env.PATH = "${tool 'maven-3.2.5'}/bin:${env.PATH}"
-        env.JAVA_HOME = "${tool 'JDK 11.0.11'}"
+        env.JAVA_HOME = "${tool 'jdk-11.0.11'}"
 
         sh "wget -O ./isa-pipeline-lib.groovy https://gitit.post.ch/projects/ISA/repos/jenkins-pipeline/raw/isa-pipeline-lib.groovy"
         def isaPipelineLib = load 'isa-pipeline-lib.groovy'
@@ -23,7 +23,7 @@ node('isa-slaves-61') {
 
             isaPipelineLib.saveArtifacts(PROJECT_NAME, 'snapshot', BRANCH_NAME)
 
-            //if( "develop".equals(BRANCH_NAME) ){
+            //if( "develop".equalsIgnoreCase(BRANCH_NAME) ){
                 isaPipelineLib.sendEmail(PROJECT_NAME, BRANCH_NAME, "Jenkins build for ${PROJECT_NAME} failed.", false, "Andreas.Fankhauser@post.ch", true)
             //}
 
