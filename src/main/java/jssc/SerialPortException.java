@@ -25,10 +25,11 @@
 package jssc;
 
 /**
+ *
  * @author scream3r
  */
 public class SerialPortException extends Exception {
-
+    final private static long serialVersionUID = 1L;
     final public static String TYPE_PORT_ALREADY_OPENED = "Port already opened";
     final public static String TYPE_PORT_NOT_OPENED = "Port not opened";
     final public static String TYPE_CANT_SET_MASK = "Can't set mask";
@@ -60,10 +61,21 @@ public class SerialPortException extends Exception {
      */
     final public static String TYPE_INCORRECT_SERIAL_PORT = "Incorrect serial port";
 
-    private String portName;
+    private SerialPort port;
     private String methodName;
     private String exceptionType;
 
+    public SerialPortException(SerialPort port, String methodName, String exceptionType) {
+        super("Port name - " + port.getPortName() + "; Method name - " + methodName + "; Exception type - " + exceptionType + ".");
+        this.port = port;
+        this.methodName = methodName;
+        this.exceptionType = exceptionType;
+    }
+
+    @Deprecated
+    private String portName;
+
+    @Deprecated
     public SerialPortException(String portName, String methodName, String exceptionType) {
         super("Port name - " + portName + "; Method name - " + methodName + "; Exception type - " + exceptionType + ".");
         this.portName = portName;
@@ -74,8 +86,16 @@ public class SerialPortException extends Exception {
     /**
      * Getting port name during operation with which the exception was called
      */
+    @Deprecated
     public String getPortName() {
-        return portName;
+        return port.getPortName();
+    }
+
+    /**
+     * Getting the port which threw the exception
+     */
+    public SerialPort getPort() {
+        return port;
     }
 
     /**

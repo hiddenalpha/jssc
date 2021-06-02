@@ -25,6 +25,7 @@
 package jssc;
 
 /**
+ *
  * @author scream3r
  */
 public interface SerialPortEventListener {

@@ -1,58 +1,39 @@
-### This is a clone of the (buggy) JSSC-library
-Cloned from https://github.com/scream3r/java-simple-serial-connector/tree/2.8.0/src/java
+![Travis-CI Status](https://travis-ci.org/java-native/jssc.svg?branch=master)
 
-Our develop-branch starts from Tag "v2.8.0". This is the
-latest and obvious final official release of scream3r JSSC library, dating from January 2014.
+A small, single Java library for working with serial ports across various systems based on the work from [scream3r/java-simple-serial-connector](https://github.com/scream3r/java-simple-serial-connector).
 
-### ISA and JSSC
-We use this version 2.8.0 throughout ISA for all Hardware-Services which
-need Serial-I/O-communication with hardware devices.
-- Vroom     *(Kundendisplay)*
-- Caveman   *(Legic-Reader)*
-- Loon      *(uBlox-GPS-Module)*
-- Vogon     *(LSA-Transmitter)*
-- Babelfish *(IBIS-Wagenbus)*
-- Megacamel *(GSM-Modem)*
+### Usage
+* [Download `.jar` manually](../../releases) or add using maven
+```xml
+<dependency>
+    <groupId>io.github.java-native</groupId>
+    <artifactId>jssc</artifactId>
+    <version>2.9.2</version>
+</dependency>
+```
+* or Gradle (KTS)
+```gradle
+repositories {
+    mavenCentral()
+}
+dependencies {
+    implementation("io.github.java-native:jssc:2.9.2")
+}
+```
+* or Gradle (Groovy)
+```gradle
+repositories {
+    mavenCentral()
+}
+dependencies {
+    implementation 'io.github.java-native:jssc:2.9.2'
+}
+```
+* [API code examples](../../wiki/examples)
 
-### The problem (= reason for this clone and fix)
-We're basically fine with this library (even when it's old) - except one thing:
-Sudden SIGSEGV-Container-Crashes (Java-Process dies).<br>
-Analysis: [See here](https://jira.post.ch/browse/SDCISA-428?focusedCommentId=1054382&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-1054382)
-*(and you can find lots of more references to the SIGSEGV-Problem in ISA's Jira-Histrory)*
-*(and you can find lots of more references to the SIGSEGV-Problem in ISA's Jira-Histrory)*
-*(and you can find lots of more references to the SIGSEGV-Problem in ISA's Jira-Histrory)*
+### Support
+* [Report a bug or request a feature](../../issues/new)
 
-### This clone
-- added this `README.md`
-- make it a Maven-Project (i.e. added a pom.xml and move files to Maven-typical src/-directories)
-- added Jenkinsfiles
-- we don't create a build infrastructure for the native code (note that the original Repo doesn't contain anything concerning native build).<br>
-Though we describe how to manually build the Linux-Library as we need to change code here.<br>
-Windows-and Mac-Libraries are kept untouched in their binary form.
-
-### How to build the native stuff
-- We use officiall GCC docker image to compile CPP-source to the *.so shared object.
-- We only need and support the 64-Bit-Linux-binary.<br>
-*i.e. if you need to compile Windows-DLL or for MacOS or a 32-Bit-library: help yourself*
-```
-scp -rp src/ user@eddieXXXXX:jssc/src
-```
-And then on that Eddie:
-```
-cd jssc
-docker run --rm --user $(id -u):$(id -g) -v "$PWD":/blubb -w /blubb gcc:4.8 g++ -Isrc/main/extracted-jni-headers -fPIC -shared -o src/main/resources/libs/linux/libjSSC_x86_64.so src/main/cpp/_nix_based/jssc.cpp
-```
-Modify the generated docker-compose.yaml by adding a volume.mount to consteallation pegasus:
-```
-      - /path/to/jssc/src/main/resources/libs/linux/libjSSC_x86_64.so:/jssc-dev/jssc.so:ro
-```
-Our JSSC-Java-Library will automatically pick-up `/jssc-dev/jssc.so` and use this instead of its internal provided library
-
-After your modified and compiled native lib works, do this on your dev-machine:
-```
-scp -r user@eddieXXXXX:jssc/src .
-```
-to copy-back especially your `*.cpp` and the compiled `*.so` to commit the changes to Git
-
-
-see also [README concerning JNI-header-files](src/main/extracted-jni-headers/README.md)
+### Developers
+* [Compile this project from source](../../wiki/compiling)
+* [Chat on Slack](https://join.slack.com/t/java-native/shared_invite/zt-7oy9i5j8-yje5mtdLcLBtqhYWcMsDOg)
