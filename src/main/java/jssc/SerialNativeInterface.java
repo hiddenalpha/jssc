@@ -24,9 +24,13 @@
  */
 package jssc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.*;
 
 /**
+ *
  * @author scream3r
  */
 public class SerialNativeInterface {
@@ -78,68 +82,31 @@ public class SerialNativeInterface {
     }
 
     private static void defaultLoad() {
-        String libFolderPath;
-        String libName;
 
-        String osName        = System.getProperty("os.name"          );
-        String architecture  = System.getProperty("os.arch"          );
-        String fileSeparator = System.getProperty("file.separator"   );
-        String libRootFolder = System.getProperty("java.io.tmpdir"   );
-        String javaLibPath   = System.getProperty("java.library.path");
+        String osName = System.getProperty("os.name");
 
         if (osName.equals("Linux")) {
-            osName = "linux";
+            osName = "linux_64";
             osType = OS_LINUX;
-        } else if (osName.startsWith("Win")) {
-            osName = "windows";
+        }
+        else if (osName.startsWith("Win")) {
+            osName = "windows_64";
             osType = OS_WINDOWS;
         }//since 0.9.0 ->
-        else if (osName.equals("SunOS")) {
-            osName = "solaris";
-            osType = OS_SOLARIS;
-        } else if (osName.equals("Mac OS X") || osName.equals("Darwin")) {//os.name "Darwin" since 2.6.0
-            osName = "mac_os_x";
+        else if (osName.equals("Mac OS X") || osName.equals("Darwin")) {//os.name "Darwin" since 2.6.0
+            osName = "osx_64";
             osType = OS_MAC_OS_X;
         }//<- since 0.9.0
-
-        if (architecture.equals("i386") || architecture.equals("i686")) {
-            architecture = "x86";
-        } else if (architecture.equals("amd64") || architecture.equals("universal")) {//os.arch "universal" since 2.6.0
-            architecture = "x86_64";
-        } else if (architecture.equals("arm")) {//since 2.1.0
-            String floatStr = "sf";
-            if (javaLibPath.toLowerCase().contains("gnueabihf") || javaLibPath.toLowerCase().contains("armhf")) {
-                floatStr = "hf";
-            } else {
-                try {
-                    Process readelfProcess = Runtime.getRuntime().exec("readelf -A /proc/self/exe");
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(readelfProcess.getInputStream()));
-                    String buffer = "";
-                    while ((buffer = reader.readLine()) != null && !buffer.isEmpty()) {
-                        if (buffer.toLowerCase().contains("Tag_ABI_VFP_args".toLowerCase())) {
-                            floatStr = "hf";
-                            break;
-                        }
-                    }
-                    reader.close();
-                } catch (Exception ex) {
-                    //Do nothing
-                }
-            }
-            architecture = "arm" + floatStr;
+        else{
+            System.err.println("Whops. Sorry not impl yet (E_oiurtghjaoeir)");
+            throw new RuntimeException("Whops. Sorry not impl yet");
         }
 
-        libFolderPath = libRootFolder + fileSeparator + ".jssc" + fileSeparator + osName;
-        libName = "jSSC_" + architecture;
-        libName = System.mapLibraryName(libName);
-
-        if (libName.endsWith(".dylib")) {//Since 2.1.0 MacOSX 10.8 fix
-            libName = libName.replace(".dylib", ".jnilib");
-        }
-
-        new File(libFolderPath).mkdirs();
-        extractLib((libFolderPath + fileSeparator + libName), osName, libName);
-        tryLoad(libFolderPath + fileSeparator + libName);
+        String libName = System.mapLibraryName("jssc");
+        String libFilePath = System.getProperty("java.io.tmpdir") + System.getProperty("file.separator") + libName;
+        new File(libFilePath).getParentFile().mkdirs();
+        extractLib(libFilePath, osName, libName);
+        tryLoad(libFilePath);
     }
 
     private static boolean tryLoad(String filename) {
@@ -150,7 +117,7 @@ public class SerialNativeInterface {
             }
             System.out.println("JSSC: Try to load " + filename);
             System.load(filename);
-            System.out.println("JSSC: Loading " + filename + " successful");
+            System.out.println("JSSC: Successfully loaded " + filename + ". Version is " + getNativeLibraryVersion());
             return true;
         } catch (Throwable ex) {
             System.err.println("JSSC: Loading " + filename + " failed");
@@ -159,13 +126,12 @@ public class SerialNativeInterface {
         }
     }
 
-    /**
-     * Extract lib to lib folder
-     */
     private static void extractLib(String libFilePath, String osName, String libName) {
-        try (InputStream input = SerialNativeInterface.class.getResourceAsStream("/libs/" + osName + "/" + libName);
-             FileOutputStream output = new FileOutputStream(libFilePath)
-        ) {
+        InputStream input = null;
+        FileOutputStream output = null;
+        try {
+            input = SerialNativeInterface.class.getResourceAsStream("/natives/" + osName + "/" + libName);
+            output = new FileOutputStream(libFilePath);
             int read;
             byte[] buffer = new byte[4096];
             while ((read = input.read(buffer)) != -1) {
@@ -182,12 +148,29 @@ public class SerialNativeInterface {
                 // but continue
             }
             throw new RuntimeException(ex);
+        }finally {
+            closeGracefully(output);
+            closeGracefully(input);
+        }
+    }
+
+    /**
+     * @param closeable
+     *      Can be null.
+     */
+    private static void closeGracefully(Closeable closeable) {
+        if (closeable == null) return;
+        try {
+            closeable.close();
+        } catch (IOException e) {
+            Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
+            logger.error("close() failed:", e);
         }
     }
 
     /**
      * Get OS type (OS_LINUX || OS_WINDOWS || OS_SOLARIS)
-     * @return one of the "OS_" constants
+     *
      * @since 0.8
      */
     public static int getOsType() {
@@ -198,6 +181,7 @@ public class SerialNativeInterface {
      * Get jSSC native library version
      *
      * @return native lib version (for jSSC-2.8.0 should be 2.8 for example)
+     *
      * @since 2.8.0
      */
     public static native String getNativeLibraryVersion();
@@ -205,8 +189,9 @@ public class SerialNativeInterface {
     /**
      * Open port
      *
-     * @param portName    name of port for opening
+     * @param portName name of port for opening
      * @param useTIOCEXCL enable/disable using of <b>TIOCEXCL</b>. Take effect only on *nix based systems
+     * 
      * @return handle of opened port or -1 if opening of the port was unsuccessful
      */
     public native long openPort(String portName, boolean useTIOCEXCL);
@@ -214,31 +199,34 @@ public class SerialNativeInterface {
     /**
      * Setting the parameters of opened port
      *
-     * @param handle   handle of opened port
+     * @param handle handle of opened port
      * @param baudRate data transfer rate
      * @param dataBits number of data bits
      * @param stopBits number of stop bits
-     * @param parity   parity
-     * @param setRTS   initial state of RTS line (ON/OFF)
-     * @param setDTR   initial state of DTR line (ON/OFF)
-     * @param flags    additional Native settings. Take effect only on *nix based systems
+     * @param parity parity
+     * @param setRTS initial state of RTS line (ON/OFF)
+     * @param setDTR initial state of DTR line (ON/OFF)
+     * @param flags additional Native settings. Take effect only on *nix based systems
+     * 
      * @return If the operation is successfully completed, the method returns true, otherwise false
      */
     public native boolean setParams(long handle, int baudRate, int dataBits, int stopBits, int parity, boolean setRTS, boolean setDTR, int flags);
 
     /**
      * Purge of input and output buffer
-     *
+     * 
      * @param handle handle of opened port
-     * @param flags  flags specifying required actions for purgePort method
+     * @param flags flags specifying required actions for purgePort method
+     *
      * @return If the operation is successfully completed, the method returns true, otherwise false
      */
     public native boolean purgePort(long handle, int flags);
 
     /**
      * Close port
-     *
+     * 
      * @param handle handle of opened port
+     * 
      * @return If the operation is successfully completed, the method returns true, otherwise false
      */
     public native boolean closePort(long handle);
@@ -247,15 +235,17 @@ public class SerialNativeInterface {
      * Set events mask
      *
      * @param handle handle of opened port
-     * @param mask   events mask
+     * @param mask events mask
+     * 
      * @return If the operation is successfully completed, the method returns true, otherwise false
      */
     public native boolean setEventsMask(long handle, int mask);
 
     /**
      * Get events mask
-     *
+     * 
      * @param handle handle of opened port
+     * 
      * @return Method returns event mask as a variable of <b>int</b> type
      */
     public native int getEventsMask(long handle);
@@ -264,6 +254,7 @@ public class SerialNativeInterface {
      * Wait events
      *
      * @param handle handle of opened port
+     *
      * @return Method returns two-dimensional array containing event types and their values
      * (<b>events[i][0] - event type</b>, <b>events[i][1] - event value</b>).
      */
@@ -271,9 +262,10 @@ public class SerialNativeInterface {
 
     /**
      * Change RTS line state
-     *
+     * 
      * @param handle handle of opened port
-     * @param value  <b>true - ON</b>, <b>false - OFF</b>
+     * @param value <b>true - ON</b>, <b>false - OFF</b>
+     *
      * @return If the operation is successfully completed, the method returns true, otherwise false
      */
     public native boolean setRTS(long handle, boolean value);
@@ -282,25 +274,28 @@ public class SerialNativeInterface {
      * Change DTR line state
      *
      * @param handle handle of opened port
-     * @param value  <b>true - ON</b>, <b>false - OFF</b>
+     * @param value <b>true - ON</b>, <b>false - OFF</b>
+     *
      * @return If the operation is successfully completed, the method returns true, otherwise false
      */
     public native boolean setDTR(long handle, boolean value);
 
     /**
      * Read data from port
-     *
-     * @param handle    handle of opened port
+     * 
+     * @param handle handle of opened port
      * @param byteCount count of bytes required to read
+     * 
      * @return Method returns the array of read bytes
      */
     public native byte[] readBytes(long handle, int byteCount);
 
     /**
      * Write data to port
-     *
+     * 
      * @param handle handle of opened port
      * @param buffer array of bytes to write
+     * 
      * @return If the operation is successfully completed, the method returns true, otherwise false
      */
     public native boolean writeBytes(long handle, byte[] buffer);
@@ -309,9 +304,11 @@ public class SerialNativeInterface {
      * Get bytes count in buffers of port
      *
      * @param handle handle of opened port
+     *
      * @return Method returns the array that contains info about bytes count in buffers:
      * <br><b>element 0</b> - input buffer
      * <br><b>element 1</b> - output buffer
+     *
      * @since 0.8
      */
     public native int[] getBuffersBytesCount(long handle);
@@ -320,8 +317,10 @@ public class SerialNativeInterface {
      * Set flow control mode
      *
      * @param handle handle of opened port
-     * @param mask   mask of flow control mode
+     * @param mask mask of flow control mode
+     *
      * @return If the operation is successfully completed, the method returns true, otherwise false
+     *
      * @since 0.8
      */
     public native boolean setFlowControlMode(long handle, int mask);
@@ -330,7 +329,9 @@ public class SerialNativeInterface {
      * Get flow control mode
      *
      * @param handle handle of opened port
+     *
      * @return Mask of setted flow control mode
+     *
      * @since 0.8
      */
     public native int getFlowControlMode(long handle);
@@ -344,8 +345,9 @@ public class SerialNativeInterface {
 
     /**
      * Getting lines states
-     *
+     * 
      * @param handle handle of opened port
+     *
      * @return Method returns the array containing information about lines in following order:
      * <br><b>element 0</b> - <b>CTS</b> line state
      * <br><b>element 1</b> - <b>DSR</b> line state
@@ -355,11 +357,12 @@ public class SerialNativeInterface {
     public native int[] getLinesStatus(long handle);
 
     /**
-     * Send Break singnal for setted duration
-     *
-     * @param handle   handle of opened port
+     * Send Break signal for set duration
+     * 
+     * @param handle handle of opened port
      * @param duration duration of Break signal
      * @return If the operation is successfully completed, the method returns true, otherwise false
+     *
      * @since 0.8
      */
     public native boolean sendBreak(long handle, int duration);

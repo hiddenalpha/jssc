@@ -25,13 +25,18 @@
 package jssc;
 
 /**
+ *
  * @author scream3r
  */
 public class SerialPortEvent {
 
-    private String portName;
+
+    private SerialPort port;
     private int eventType;
     private int eventValue;
+
+    @Deprecated
+    private String portName;
 
     public static final int RXCHAR = 1;
     public static final int RXFLAG = 2;
@@ -43,17 +48,32 @@ public class SerialPortEvent {
     public static final int ERR = 128;
     public static final int RING = 256;
 
-    public SerialPortEvent(String portName, int eventType, int eventValue) {
+    public SerialPortEvent(SerialPort port, int eventType, int eventValue){
+        this.port = port;
+        this.eventType = eventType;
+        this.eventValue = eventValue;
+    }
+
+    @Deprecated
+    public SerialPortEvent(String portName, int eventType, int eventValue){
         this.portName = portName;
         this.eventType = eventType;
         this.eventValue = eventValue;
     }
 
     /**
+     * Getting the port that set off this event
+     */
+    public SerialPort getPort(){
+        return port;
+    }
+
+    /**
      * Getting port name which sent the event
      */
+    @Deprecated
     public String getPortName() {
-        return portName;
+        return port.getPortName();
     }
 
     /**
@@ -85,98 +105,62 @@ public class SerialPortEvent {
      * Method returns true if event of type <b>"RXCHAR"</b> is received and otherwise false
      */
     public boolean isRXCHAR() {
-        if (eventType == RXCHAR) {
-            return true;
-        } else {
-            return false;
-        }
+        return eventType == RXCHAR;
     }
 
     /**
      * Method returns true if event of type <b>"RXFLAG"</b> is received and otherwise false
      */
     public boolean isRXFLAG() {
-        if (eventType == RXFLAG) {
-            return true;
-        } else {
-            return false;
-        }
+        return eventType == RXFLAG;
     }
 
     /**
      * Method returns true if event of type <b>"TXEMPTY"</b> is received and otherwise false
      */
     public boolean isTXEMPTY() {
-        if (eventType == TXEMPTY) {
-            return true;
-        } else {
-            return false;
-        }
+        return eventType == TXEMPTY;
     }
 
     /**
      * Method returns true if event of type <b>"CTS"</b> is received and otherwise false
      */
     public boolean isCTS() {
-        if (eventType == CTS) {
-            return true;
-        } else {
-            return false;
-        }
+        return eventType == CTS;
     }
 
     /**
      * Method returns true if event of type <b>"DSR"</b> is received and otherwise false
      */
     public boolean isDSR() {
-        if (eventType == DSR) {
-            return true;
-        } else {
-            return false;
-        }
+        return eventType == DSR;
     }
 
     /**
      * Method returns true if event of type <b>"RLSD"</b> is received and otherwise false
      */
     public boolean isRLSD() {
-        if (eventType == RLSD) {
-            return true;
-        } else {
-            return false;
-        }
+        return eventType == RLSD;
     }
 
     /**
      * Method returns true if event of type <b>"BREAK"</b> is received and otherwise false
      */
     public boolean isBREAK() {
-        if (eventType == BREAK) {
-            return true;
-        } else {
-            return false;
-        }
+        return eventType == BREAK;
     }
 
     /**
      * Method returns true if event of type <b>"ERR"</b> is received and otherwise false
      */
     public boolean isERR() {
-        if (eventType == ERR) {
-            return true;
-        } else {
-            return false;
-        }
+        return eventType == ERR;
     }
 
     /**
      * Method returns true if event of type <b>"RING"</b> is received and otherwise false
      */
     public boolean isRING() {
-        if (eventType == RING) {
-            return true;
-        } else {
-            return false;
-        }
+        return eventType == RING;
     }
 }

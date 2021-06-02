@@ -35,7 +35,7 @@
 #ifdef __linux__
     #include <linux/serial.h>
 #endif
-#ifdef __SunOS
+#ifdef __sun
     #include <sys/filio.h>//Needed for FIONREAD in Solaris
     #include <string.h>//Needed for select() function
 #endif
@@ -44,15 +44,16 @@
 #endif
 
 #include <jni.h>
-#include "../jssc_SerialNativeInterface.h"
+#include <jssc_SerialNativeInterface.h>
+#include "version.h"
 
 //#include <iostream> //-lCstd use for Solaris linker
 
 /*
  * Get native library version
  */
-JNIEXPORT jstring JNICALL Java_jssc_SerialNativeInterface_getNativeLibraryVersion(JNIEnv *env, jobject object) {
-    return env->NewStringUTF(jSSC_NATIVE_LIB_VERSION);
+JNIEXPORT jstring JNICALL Java_jssc_SerialNativeInterface_getNativeLibraryVersion(JNIEnv *env, jclass clazz) {
+    return env->NewStringUTF(JSSC_VERSION);
 }
 
 /* OK */
@@ -241,7 +242,7 @@ const jint PARAMS_FLAG_PARMRK = 2;
 JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setParams
   (JNIEnv *env, jobject object, jlong portHandle, jint baudRate, jint byteSize, jint stopBits, jint parity, jboolean setRTS, jboolean setDTR, jint flags){
     jboolean returnValue = JNI_FALSE;
-   
+    
     speed_t baudRateValue = getBaudRateByNum(baudRate);
     int dataBits = getDataBitsByNum(byteSize);
     
@@ -526,7 +527,7 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
 /*
  * Reading data from the port
  *
- * Rewrited to use poll() instead of select() to handle fd>=1024
+ * Rewritten to use poll() instead of select() to handle fd>=1024
  */
 JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
   (JNIEnv *env, jobject object, jlong portHandle, jint byteCount){
@@ -534,9 +535,9 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     struct pollfd fds[1];
     fds[0].fd = portHandle;
     fds[0].events = POLLIN;
-
     jbyte *lpBuffer = new jbyte[byteCount];
     int byteRemains = byteCount;
+
     while(byteRemains > 0) {
         int result = poll(fds, 1, 1000);
         if (result < 0) {
@@ -551,7 +552,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
             delete lpBuffer;
             return NULL;
         } else if (result == 0) {
-            printf("Java_jssc_SerialNativeInterface_readBytes: read() returned 0. ignored\n"); 
+            printf("Java_jssc_SerialNativeInterface_readBytes: read() returned 0. ignored\n");
         } else {
             byteRemains -= result;
         }
@@ -634,6 +635,7 @@ JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_getFlowControlMode
             returnValue |= FLOWCONTROL_XONXOFF_OUT;
         }
     }
+    delete settings;
     return returnValue;
 }
 
@@ -732,19 +734,24 @@ const jint events[] = {INTERRUPT_BREAK,
 JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
   (JNIEnv *env, jobject object, jlong portHandle) {
 
-//    struct timespec ts;
-//    clock_gettime(CLOCK_REALTIME, &ts);
-//    printf("%ld.%09ld\n", ts.tv_sec, ts.tv_nsec);
-//    fflush(stdout);
+    // Just to print some debugging stuff (Author: oli-h)
+    //struct timespec ts;
+    //clock_gettime(CLOCK_REALTIME, &ts);
+    //printf("%ld.%09ld\n", ts.tv_sec, ts.tv_nsec);
+    //fflush(stdout);
 
-    // we do the 'wait/sleep' within the EventLoop here in native code
-    // advantage: we can use poll() so we still return 'quickly' when new incomping bytes arrived
-    // only Events like CTS/DSR/RING etc.. are delayed up to 100 ms before they are delivered back to Java
-    // Note also that the 'wait 100 ms' leads to much less idle-CPU-load than the original 'sleep 1 ms' (in Java) where we hat ~10% idle load
-    struct pollfd fds[1]; // TODO: can be implemented without array, i.e. as simple/single struct
-    fds[0].fd = portHandle;
-    fds[0].events = POLLIN | POLLPRI | POLLRDHUP;
-    poll(fds, 1, 100);  // poll does not wait for serial-events like 'DCD line changed' or 'RI line changed' - so we need to work with a timeout
+    // we do the 'wait/sleep' within the EventLoop here in native code. Advantage:
+    // we can use poll() so we still return 'quickly' when new incomping bytes
+    // arrived only Events like CTS/DSR/RING etc.. are delayed up to 100 ms before
+    // they are delivered back to Java. Note also that the 'wait 100 ms' leads to
+    // much less idle-CPU-load than the original 'sleep 1 ms' (in Java) where we
+    // hat ~10% idle load (Author: oli-h).
+    struct pollfd fds;
+    fds.fd = portHandle;
+    fds.events = POLLIN | POLLPRI | POLLRDHUP;
+    // poll does not wait for serial-events like 'DCD line changed' or 'RI line changed'.
+    // So we need to use a timeout.
+    poll(&fds, 1, 100);
 
     jclass intClass = env->FindClass("[I");
     jobjectArray returnArray = env->NewObjectArray(sizeof(events)/sizeof(jint), intClass, NULL);
@@ -842,7 +849,7 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
             jintArray singleResultArray = env->NewIntArray(2);
             env->SetIntArrayRegion(singleResultArray, 0, 2, returnValues);
             env->SetObjectArrayElement(returnArray, i, singleResultArray);
-       };
+        };
     }
     return returnArray;
 }
