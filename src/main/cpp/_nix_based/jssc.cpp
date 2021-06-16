@@ -536,32 +536,38 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     fds[0].fd = portHandle;
     fds[0].events = POLLIN;
     jbyte *lpBuffer = new jbyte[byteCount];
+    jbyteArray ret = NULL;
     int byteRemains = byteCount;
 
     while(byteRemains > 0) {
         int result = poll(fds, 1, 1000);
         if (result < 0) {
-            // TODO: use strerror(errno) for textual representation of errno
-            printf("Java_jssc_SerialNativeInterface_readBytes: poll() failed with errno=%d\n", errno);
-            delete lpBuffer;
-            return NULL;
+            // man poll: "On error, -1 is returned, and errno is set to indicate the error."
+            fprintf(stderr, "Java_jssc_SerialNativeInterface_readBytes: poll(): errno=%d: %s\n", errno, strerror(errno));
+            goto endFn;
+        }
+        else if(result == 0){
+            // man poll: "A return value of zero indicates that the system call timed out ..."
+            continue;
         }
         result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
         if (result < 0) {
-            printf("Java_jssc_SerialNativeInterface_readBytes: read() failed with errno=%d\n", errno);
-            delete lpBuffer;
-            return NULL;
+            // man read: "On error, -1 is returned, and errno is set to indicate the error."
+            fprintf(stderr, "Java_jssc_SerialNativeInterface_readBytes: read(): errno=%d: %s\n", errno, strerror(errno));
+            goto endFn;
         } else if (result == 0) {
-            printf("Java_jssc_SerialNativeInterface_readBytes: read() returned 0. ignored\n");
+            fprintf(stderr, "Java_jssc_SerialNativeInterface_readBytes: read(): EOF=%d\n", feof(portHandle));
+            goto endFn;
         } else {
             byteRemains -= result;
         }
     }
 
-    jbyteArray returnArray = env->NewByteArray(byteCount);
+    ret = env->NewByteArray(byteCount);
     env->SetByteArrayRegion(returnArray, 0, byteCount, lpBuffer);
+    endFn:
     delete lpBuffer;
-    return returnArray;
+    return ret;
 }
 
 /* OK */
