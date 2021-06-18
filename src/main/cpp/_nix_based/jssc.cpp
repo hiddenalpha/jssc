@@ -229,6 +229,98 @@ int getDataBitsByNum(jint byteSize) {
     }
 }
 
+
+/**
+ * @param Logger
+ *      Location where the 'Logger' class will be returned. MUST NOT be NULL.
+ * @param logger
+ *      Location where the 'logger' instance will be returned. MUST NOT be NULL.
+ * @param methodName
+ *      name of the method to use. MUST be one of: "error", "warn", "info",
+ *      "debug", "trace"
+ * @param methodStr
+ *      Location where the 'info(String)' method will be returned. Can be NULL
+ *      if caller does not need it.
+ * @param methodVArg
+ *      Location where the 'info(String, Object[])' method will be returned.
+ *      Can be NULL if caller does not need it.
+ * @return
+ *      Zero on success, or negative value on error.
+ */
+static void getLogger( JNIEnv*env, jobject thisObj, jclass*Logger, jobject*logger, const char*methodName, jmethodID*methodStr, jmethodID*methodVArg )
+{
+    jclass thisClass = env->FindClass("Ljssc/SerialNativeInterface;");
+    if(thisClass == NULL) return;
+
+    *Logger = env->FindClass("org/slf4j/Logger");
+    if(*Logger == NULL) return;
+
+    jfieldID loggerFieldId = env->GetStaticFieldID(thisClass, "logger", "Lorg/slf4j/Logger;");
+    if(loggerFieldId == NULL) return;
+
+    *logger = env->GetStaticObjectField( thisClass, loggerFieldId );
+    if(*logger == NULL) return;
+
+    int methodNameIsOk = !strcmp(methodName,"error") || !strcmp(methodName,"warn")
+        || !strcmp(methodName,"info") || !strcmp(methodName,"debug")
+        || !strcmp(methodName,"trace");
+    if( ! methodNameIsOk ){
+        env->ThrowNew(env->FindClass("Ljava/lang/IllegalArgumentException;"), methodName);
+        return;
+    }
+
+    if(methodStr != NULL){
+        *methodStr = env->GetMethodID(*Logger, methodName, "(Ljava/lang/String;)V");
+        if(*methodStr == NULL) return;
+    }
+
+    if(methodVArg != NULL){
+        *methodVArg = env->GetMethodID(*Logger, methodName, "(Ljava/lang/String;[Ljava/lang/Object;)V");
+        if(*methodVArg == NULL) return;
+    }
+}
+
+
+/**
+ * Publishes a log msg to slf4j logging system.
+ *
+ * @param level
+ *      Name of the Logger method to use. Eg: 'debug'.
+ * @param msg
+ *      cstring to log.
+ */
+static void logCStr(JNIEnv*env, jobject thisObj, const char*level, const char*msg)
+{
+    jclass Logger = NULL;
+    jobject logger = NULL;
+    jmethodID method = NULL;
+    // Fill 'class', 'instance' and 'method'.
+    getLogger(env, thisObj, &Logger, &logger, level, &method, NULL);
+    if(env->ExceptionOccurred()) return;
+    // Setup args
+    jobject jmsg = env->NewStringUTF(msg);
+    if(env->ExceptionOccurred()) return;
+    // Log through slf4j
+    env->CallVoidMethod(logger, method, jmsg);
+    if(env->ExceptionOccurred()) return;
+    env->DeleteLocalRef(jmsg);
+    if(env->ExceptionOccurred()) return;
+}
+
+
+static void logVArgs(JNIEnv*env, jobject thisObj, const char*level, jobject fmtStr, jobjectArray fmtArgs)
+{
+    jclass Logger = NULL;
+    jobject logger = NULL;
+    jmethodID method = NULL;
+    // Fill 'class', 'instance' and 'method'.
+    getLogger(env, thisObj, &Logger, &logger, level, NULL, &method);
+    if(env->ExceptionOccurred()) return;
+    // Log through slf4j
+    env->CallVoidMethod(logger, method, fmtStr, fmtArgs);
+}
+
+
 //since 2.6.0 ->
 const jint PARAMS_FLAG_IGNPAR = 1;
 const jint PARAMS_FLAG_PARMRK = 2;
@@ -525,97 +617,6 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
 }
 
 
-/**
- * @param Logger
- *      Location where the 'Logger' class will be returned. MUST NOT be NULL.
- * @param logger
- *      Location where the 'logger' instance will be returned. MUST NOT be NULL.
- * @param methodName
- *      name of the method to use. MUST be one of: "error", "warn", "info",
- *      "debug", "trace"
- * @param methodStr
- *      Location where the 'info(String)' method will be returned. Can be NULL
- *      if caller does not need it.
- * @param methodVArg
- *      Location where the 'info(String, Object[])' method will be returned.
- *      Can be NULL if caller does not need it.
- * @return
- *      Zero on success, or negative value on error.
- */
-static void getLogger( JNIEnv*env, jobject serialNativeInterface, jclass*Logger, jobject*logger, const char*methodName, jmethodID*methodStr, jmethodID*methodVArg )
-{
-    jclass thisClass = env->FindClass("Ljssc/SerialNativeInterface;");
-    if(thisClass == NULL) return;
-
-    *Logger = env->FindClass("org/slf4j/Logger");
-    if(*Logger == NULL) return;
-
-    jfieldID loggerFieldId = env->GetStaticFieldID(thisClass, "logger", "Lorg/slf4j/Logger;");
-    if(loggerFieldId == NULL) return;
-
-    *logger = env->GetStaticObjectField( thisClass, loggerFieldId );
-    if(*logger == NULL) return;
-
-    int methodNameIsOk = !strcmp(methodName,"error") || !strcmp(methodName,"warn")
-        || !strcmp(methodName,"info") || !strcmp(methodName,"debug")
-        || !strcmp(methodName,"trace");
-    if( ! methodNameIsOk ){
-        env->ThrowNew(env->FindClass("Ljava/lang/IllegalArgumentException;"), methodName);
-        return;
-    }
-
-    if(methodStr != NULL){
-        *methodStr = env->GetMethodID(*Logger, methodName, "(Ljava/lang/String;)V");
-        if(*methodStr == NULL) return;
-    }
-
-    if(methodVArg != NULL){
-        *methodVArg = env->GetMethodID(*Logger, methodName, "(Ljava/lang/String;[Ljava/lang/Object;)V");
-        if(*methodVArg == NULL) return;
-    }
-}
-
-
-/**
- * Publishes a log msg to slf4j logging system.
- *
- * @param level
- *      Name of the Logger method to use. Eg: 'debug'.
- * @param msg
- *      cstring to log.
- */
-static void logCStr(JNIEnv*env, jobject serialNativeInterface, const char*level, const char*msg)
-{
-    jclass Logger = NULL;
-    jobject logger = NULL;
-    jmethodID method = NULL;
-    // Fill 'class', 'instance' and 'method'.
-    getLogger(env, serialNativeInterface, &Logger, &logger, level, &method, NULL);
-    if(env->ExceptionOccurred()) return;
-    // Setup args
-    jobject jmsg = env->NewStringUTF(msg);
-    if(env->ExceptionOccurred()) return;
-    // Log through slf4j
-    env->CallVoidMethod(logger, method, jmsg);
-    if(env->ExceptionOccurred()) return;
-    env->DeleteLocalRef(jmsg);
-    if(env->ExceptionOccurred()) return;
-}
-
-
-static void logVArgs(JNIEnv*env, jobject serialNativeInterface, const char*level, jobject fmtStr, jobjectArray fmtArgs)
-{
-    jclass Logger = NULL;
-    jobject logger = NULL;
-    jmethodID method = NULL;
-    // Fill 'class', 'instance' and 'method'.
-    getLogger(env, serialNativeInterface, &Logger, &logger, level, NULL, &method);
-    if(env->ExceptionOccurred()) return;
-    // Log through slf4j
-    env->CallVoidMethod(logger, method, fmtStr, fmtArgs);
-}
-
-
 /* OK */
 /*
  * Reading data from the port
@@ -623,72 +624,63 @@ static void logVArgs(JNIEnv*env, jobject serialNativeInterface, const char*level
  * Rewritten to use poll() instead of select() to handle fd>=1024
  */
 JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
-  (JNIEnv *env, jobject serialNativeInterface, jlong portHandle, jint byteCount){
+  (JNIEnv *env, jobject thisObj, jlong portHandle, jint byteCount){
 
     struct pollfd fds[1];
     fds[0].fd = portHandle;
     fds[0].events = POLLIN;
     jbyte *lpBuffer = new jbyte[byteCount];
-    jbyteArray ret = NULL; // <- Initialze, to ensure 'return NULL' in error cases.
+    jbyteArray ret = NULL;
     int byteRemains = byteCount;
 
-    /* TODO remove this thinkering block */ {
-        jobjectArray fmtArgs = env->NewObjectArray( 1, env->FindClass("java/lang/Object"), NULL );
-        if( fmtArgs==NULL ){ fprintf(stderr,"TODO_005219b6208c98d8e17e36eb94bc44f6\n"); }
-        env->SetObjectArrayElement( fmtArgs, 0, env->NewStringUTF("Hi-dude") );
-        logVArgs( env, serialNativeInterface, "info", env->NewStringUTF("native says: {}"), fmtArgs );
-    }
-
+    logCStr(env, thisObj, "debug", "Enter read loop");
     while(byteRemains > 0) {
+
         int result = poll(fds, 1, 1000);
-        /* log */ {
-            char msg[sizeof "poll() -> 18446744073709551616"];
-            sprintf( msg,   "poll() -> %d", result);
-            logCStr(env, serialNativeInterface, "debug", msg);
-            if(env->ExceptionOccurred()) goto endFn;
-        }
         if(result < 0){
-            if(0){
-                // TODO
-            }else{
-                char fmt[] =       "poll() errno=%d";
-                char errMsg[sizeof "poll() errno=18446744073709551616"];
-                sprintf(errMsg, fmt, errno);
-                env->ThrowNew(env->FindClass("java/lang/RuntimeException"), errMsg);
-                goto endFn;
-            }
             // man poll: "On error, -1 is returned, and errno is set to indicate the error."
-            fprintf(stderr, "Java_jssc_SerialNativeInterface_readBytes: poll(): errno=%d\n", errno);
-            goto endFn;
+            char msg[sizeof "poll() errno=___________"];
+            sprintf(msg,    "poll() errno=%d", errno);
+            logCStr(env, thisObj, "error", msg);
+            //goto endFn; // <- TODO use this line to prevent fail-silent-hell (HINT: Not backward-compatible).
         }
         else if(result == 0){
             // man poll: "A return value of zero indicates that the system call timed out"
+            logCStr(env, thisObj, "debug", "poll() ret=0 (timed out)");
             continue;
         }
+
+        char msg[sizeof "poll() ret=___________"];
+        sprintf( msg,   "poll() ret=%d", result);
+        logCStr(env, thisObj, "debug", msg);
+
+        errno = 0;
         result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
-        fprintf(stderr, "[DEBUG] %s%ld%s%d%s%d\n", "read(", portHandle, ", lpBuffer + (byteCount - byteRemains), ", byteRemains, ") -> ", result);
         if (result < 0) {
             // man read: "On error, -1 is returned, and errno is set to indicate the error."
-            char fmt[] =       "read() errno=%d";
-            char errMsg[sizeof "read() errno=18446744073709551616"];
-            sprintf(errMsg, fmt, errno);
-            env->ThrowNew(env->FindClass("java/io/IOException"), errMsg);
-            goto endFn;
+            char msg[sizeof "read() errno=___________"];
+            sprintf(msg,    "read() errno=%d", errno);
+            logCStr(env, thisObj, "error", msg);
+            //goto endFn; // <- TODO use this line to prevent fail-silent-hell (HINT: Not backward-compatible).
         } else if (result == 0) {
-            // TODO: AFAIK this happens either on EOF or on EWOULDBLOCK (see 'man read').
-            //       But I don't know how to use 'feof(FILE*)' to distinguish the two as we
-            //       have an 'int' and no 'FILE*'.
-            fprintf(stderr, "Java_jssc_SerialNativeInterface_readBytes: read(): result=%d, errno=%d\n", result, errno);
-            goto endFn;
+            // AFAIK this happens either on EOF or on EWOULDBLOCK (see 'man read').
+            char msg[sizeof "read() result=0, errno=___________"];
+            sprintf(msg, "read() result=0, errno=%d", errno);
+            logCStr(env, thisObj, "debug", msg);
+            // Just continue reading.
         } else {
             byteRemains -= result;
         }
     }
 
+    char msg[sizeof "Return ___________ read bytes"];
+    sprintf(msg,    "Return %d read bytes", byteCount);
+    logCStr(env, thisObj, "debug", msg);
+
     ret = env->NewByteArray(byteCount);
     env->SetByteArrayRegion(ret, 0, byteCount, lpBuffer);
 
-    endFn:
+    //endFn: // <- TODO Make use of this label (see comments near 'goto' above)
     delete lpBuffer;
     return ret;
 }
