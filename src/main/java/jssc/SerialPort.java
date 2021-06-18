@@ -24,6 +24,7 @@
  */
 package jssc;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
 
@@ -432,7 +433,7 @@ public class SerialPort {
      *
      * @throws SerialPortException
      */
-    public byte[] readBytes(int byteCount) throws SerialPortException {
+    public byte[] readBytes(int byteCount) throws SerialPortException, IOException {
         checkPortOpened("readBytes()");
         return serialInterface.readBytes(portHandle, byteCount);
     }
@@ -448,7 +449,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public String readString(int byteCount) throws SerialPortException {
+    public String readString(int byteCount) throws SerialPortException, IOException {
         checkPortOpened("readString()");
         return new String(readBytes(byteCount));
     }
@@ -464,7 +465,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public String readHexString(int byteCount) throws SerialPortException {
+    public String readHexString(int byteCount) throws SerialPortException, IOException {
         checkPortOpened("readHexString()");
         return readHexString(byteCount, " ");
     }
@@ -480,7 +481,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public String readHexString(int byteCount, String separator) throws SerialPortException {
+    public String readHexString(int byteCount, String separator) throws SerialPortException, IOException {
         checkPortOpened("readHexString()");
         String[] strBuffer = readHexStringArray(byteCount);
         StringBuilder returnString = new StringBuilder();
@@ -506,7 +507,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public String[] readHexStringArray(int byteCount) throws SerialPortException {
+    public String[] readHexStringArray(int byteCount) throws SerialPortException, IOException {
         checkPortOpened("readHexStringArray()");
         int[] intBuffer = readIntArray(byteCount);
         String[] strBuffer = new String[intBuffer.length];
@@ -531,7 +532,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public int[] readIntArray(int byteCount) throws SerialPortException {
+    public int[] readIntArray(int byteCount) throws SerialPortException, IOException {
         checkPortOpened("readIntArray()");
         byte[] buffer = readBytes(byteCount);
         int[] intBuffer = new int[buffer.length];
@@ -580,7 +581,7 @@ public class SerialPort {
      *
      * @since 2.0
      */
-    public byte[] readBytes(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException {
+    public byte[] readBytes(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException, IOException {
         checkPortOpened("readBytes()");
         waitBytesWithTimeout("readBytes()", byteCount, timeout);
         return readBytes(byteCount);
@@ -599,7 +600,7 @@ public class SerialPort {
      *
      * @since 2.0
      */
-    public String readString(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException {
+    public String readString(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException, IOException {
         checkPortOpened("readString()");
         waitBytesWithTimeout("readString()", byteCount, timeout);
         return readString(byteCount);
@@ -618,7 +619,7 @@ public class SerialPort {
      *
      * @since 2.0
      */
-    public String readHexString(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException {
+    public String readHexString(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException, IOException {
         checkPortOpened("readHexString()");
         waitBytesWithTimeout("readHexString()", byteCount, timeout);
         return readHexString(byteCount);
@@ -637,7 +638,7 @@ public class SerialPort {
      *
      * @since 2.0
      */
-    public String readHexString(int byteCount, String separator, int timeout) throws SerialPortException, SerialPortTimeoutException {
+    public String readHexString(int byteCount, String separator, int timeout) throws SerialPortException, SerialPortTimeoutException, IOException {
         checkPortOpened("readHexString()");
         waitBytesWithTimeout("readHexString()", byteCount, timeout);
         return readHexString(byteCount, separator);
@@ -656,7 +657,7 @@ public class SerialPort {
      *
      * @since 2.0
      */
-    public String[] readHexStringArray(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException {
+    public String[] readHexStringArray(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException, IOException {
         checkPortOpened("readHexStringArray()");
         waitBytesWithTimeout("readHexStringArray()", byteCount, timeout);
         return readHexStringArray(byteCount);
@@ -675,7 +676,7 @@ public class SerialPort {
      *
      * @since 2.0
      */
-    public int[] readIntArray(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException {
+    public int[] readIntArray(int byteCount, int timeout) throws SerialPortException, SerialPortTimeoutException, IOException {
         checkPortOpened("readIntArray()");
         waitBytesWithTimeout("readIntArray()", byteCount, timeout);
         return readIntArray(byteCount);
@@ -690,7 +691,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public byte[] readBytes() throws SerialPortException {
+    public byte[] readBytes() throws SerialPortException, IOException {
         checkPortOpened("readBytes()");
         int byteCount = getInputBufferBytesCount();
         if(byteCount <= 0){
@@ -708,7 +709,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public String readString() throws SerialPortException {
+    public String readString() throws SerialPortException, IOException {
         checkPortOpened("readString()");
         int byteCount = getInputBufferBytesCount();
         if(byteCount <= 0){
@@ -726,7 +727,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public String readHexString() throws SerialPortException {
+    public String readHexString() throws SerialPortException, IOException {
         checkPortOpened("readHexString()");
         int byteCount = getInputBufferBytesCount();
         if(byteCount <= 0){
@@ -744,7 +745,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public String readHexString(String separator) throws SerialPortException {
+    public String readHexString(String separator) throws SerialPortException, IOException {
         checkPortOpened("readHexString()");
         int byteCount = getInputBufferBytesCount();
         if(byteCount <= 0){
@@ -762,7 +763,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public String[] readHexStringArray() throws SerialPortException {
+    public String[] readHexStringArray() throws SerialPortException, IOException {
         checkPortOpened("readHexStringArray()");
         int byteCount = getInputBufferBytesCount();
         if(byteCount <= 0){
@@ -780,7 +781,7 @@ public class SerialPort {
      *
      * @since 0.8
      */
-    public int[] readIntArray() throws SerialPortException {
+    public int[] readIntArray() throws SerialPortException, IOException {
         checkPortOpened("readIntArray()");
         int byteCount = getInputBufferBytesCount();
         if(byteCount <= 0){

@@ -40,6 +40,7 @@ public class SerialNativeInterface {
     public static final int OS_SOLARIS = 2;//since 0.9.0
     public static final int OS_MAC_OS_X = 3;//since 0.9.0
 
+    private static final Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
     private static int osType = -1;
 
     /**
@@ -72,14 +73,14 @@ public class SerialNativeInterface {
      */
     public static final String PROPERTY_JSSC_PARMRK = "JSSC_PARMRK";
 
-    static {
-        boolean success = tryLoad("/jssc-dev/jssc.so");
-        if(success) {
-            osType = OS_LINUX;
-        } else  {
-            defaultLoad();
-        }
-    }
+    //static {
+    //    boolean success = tryLoad("/jssc-dev/jssc.so");
+    //    if(success) {
+    //        osType = OS_LINUX;
+    //    } else  {
+    //        defaultLoad();
+    //    }
+    //}
 
     private static void defaultLoad() {
 
@@ -163,8 +164,8 @@ public class SerialNativeInterface {
         try {
             closeable.close();
         } catch (IOException e) {
-            Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
             logger.error("close() failed:", e);
+            System.err.println("close() failed:"+ e);
         }
     }
 
@@ -288,7 +289,7 @@ public class SerialNativeInterface {
      * 
      * @return Method returns the array of read bytes
      */
-    public native byte[] readBytes(long handle, int byteCount);
+    public native byte[] readBytes(long handle, int byteCount) throws IOException;
 
     /**
      * Write data to port
