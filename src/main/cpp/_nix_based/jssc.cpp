@@ -50,12 +50,12 @@
 
 //#include <iostream> //-lCstd use for Solaris linker
 
-#define LOG_WARN ( ... )  fprintf(stderr, __VA_ARGS__ )
-#ifdef DEBUG
-    #define LOG_DEBUG( ... )  fprintf(stderr, __VA_ARGS__ )
-#else
-    #define LOG_DEBUG( ... )  /* Debugging not enabled. Just ignore calls. */
+// TODO: IMHO logging to slf4j would be nice.
+#ifndef DEBUG
+    #define DEBUG 0
 #endif
+#define LOG_WARN( fmt, ... ) fprintf(stderr, "[WRN %s:%d] " fmt, strrchr(__FILE__,'/')+1, __LINE__,  __VA_ARGS__ )
+#define LOG_DEBUG( fmt, ... ) if(DEBUG)fprintf(stderr, "[DBG %s:%d] " fmt, strrchr(__FILE__,'/')+1, __LINE__, __VA_ARGS__ );
 
 /*
  * Get native library version
@@ -549,41 +549,43 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     jbyteArray ret = NULL;
     int byteRemains = byteCount;
 
-    LOG_DEBUG("Enter read loop (%s:%d)\n", __FILE__, __LINE__);
+    LOG_DEBUG("%s\n", "Enter read loop");
     while(byteRemains > 0) {
 
         int result = poll(fds, 1, 1000);
         if(result < 0){
             // man poll: "On error, -1 is returned, and errno is set to indicate the error."
-            LOG_WARN("poll() %d: %s\n", errno, strerror(errno));
+            LOG_WARN("poll(): %s\n", strerror(errno));
             // TODO: Raise java exception and 'goto endFn'
         }
         else if(result == 0){
             // man poll: "A return value of zero indicates that the system call timed out"
-            LOG_WARN("poll() returned 0 (timed out). Call again.\n");
+            LOG_DEBUG("%s\n", "poll() returned 0 (timed out). Call again.");
             continue;
         }
-        LOG_DEBUG("poll() returned %d", result);
+        else{
+            LOG_DEBUG("%s%d\n", "poll() returned ", result);
+        }
 
         errno = 0;
         result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
         if (result < 0) {
             // man read: "On error, -1 is returned, and errno is set to indicate the error."
-            LOG_WARN("read() %d: %s", errno, strerror(errno));
+            LOG_WARN("%s%s\n", "read(): ", strerror(errno));
             // TODO: Raise java exception and 'goto endFn'
         }
         else if (result == 0) {
             // AFAIK this happens either on EOF or on EWOULDBLOCK (see 'man read').
-            LOG_WARN("read() result=0, errno=%d", errno);
+            LOG_WARN("%s%d\n", "read() result=0, errno=", errno);
             // Just continue reading.
-            // TODO: Is "just continue" the right thing to do?
+            // TODO: Is "just continue" really the right thing to do?
         }
         else {
             byteRemains -= result;
         }
     }
 
-    LOG_DEBUG("Return %d read bytes", byteCount);
+    LOG_DEBUG("%s%d%s\n", "Return ", byteCount," read bytes");
     ret = env->NewByteArray(byteCount);
     env->SetByteArrayRegion(ret, 0, byteCount, lpBuffer);
 
