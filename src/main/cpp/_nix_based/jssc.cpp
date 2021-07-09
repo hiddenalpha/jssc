@@ -50,6 +50,13 @@
 
 //#include <iostream> //-lCstd use for Solaris linker
 
+#define LOG_WARN ( ... )  fprintf(stderr, __VA_ARGS__ )
+#ifdef DEBUG
+    #define LOG_DEBUG( ... )  fprintf(stderr, __VA_ARGS__ )
+#else
+    #define LOG_DEBUG( ... )  /* Debugging not enabled. Just ignore calls. */
+#endif
+
 /*
  * Get native library version
  */
@@ -227,97 +234,6 @@ int getDataBitsByNum(jint byteSize) {
         default:
             return -1;
     }
-}
-
-
-/**
- * @param Logger
- *      Location where the 'Logger' class will be returned. MUST NOT be NULL.
- * @param logger
- *      Location where the 'logger' instance will be returned. MUST NOT be NULL.
- * @param methodName
- *      name of the method to use. MUST be one of: "error", "warn", "info",
- *      "debug", "trace"
- * @param methodStr
- *      Location where the 'info(String)' method will be returned. Can be NULL
- *      if caller does not need it.
- * @param methodVArg
- *      Location where the 'info(String, Object[])' method will be returned.
- *      Can be NULL if caller does not need it.
- * @return
- *      Zero on success, or negative value on error.
- */
-static void getLogger( JNIEnv*env, jobject thisObj, jclass*Logger, jobject*logger, const char*methodName, jmethodID*methodStr, jmethodID*methodVArg )
-{
-    jclass thisClass = env->FindClass("Ljssc/SerialNativeInterface;");
-    if(thisClass == NULL) return;
-
-    *Logger = env->FindClass("org/slf4j/Logger");
-    if(*Logger == NULL) return;
-
-    jfieldID loggerFieldId = env->GetStaticFieldID(thisClass, "logger", "Lorg/slf4j/Logger;");
-    if(loggerFieldId == NULL) return;
-
-    *logger = env->GetStaticObjectField( thisClass, loggerFieldId );
-    if(*logger == NULL) return;
-
-    int methodNameIsOk = !strcmp(methodName,"error") || !strcmp(methodName,"warn")
-        || !strcmp(methodName,"info") || !strcmp(methodName,"debug")
-        || !strcmp(methodName,"trace");
-    if( ! methodNameIsOk ){
-        env->ThrowNew(env->FindClass("Ljava/lang/IllegalArgumentException;"), methodName);
-        return;
-    }
-
-    if(methodStr != NULL){
-        *methodStr = env->GetMethodID(*Logger, methodName, "(Ljava/lang/String;)V");
-        if(*methodStr == NULL) return;
-    }
-
-    if(methodVArg != NULL){
-        *methodVArg = env->GetMethodID(*Logger, methodName, "(Ljava/lang/String;[Ljava/lang/Object;)V");
-        if(*methodVArg == NULL) return;
-    }
-}
-
-
-/**
- * Publishes a log msg to slf4j logging system.
- *
- * @param level
- *      Name of the Logger method to use. Eg: 'debug'.
- * @param msg
- *      cstring to log.
- */
-static void logCStr(JNIEnv*env, jobject thisObj, const char*level, const char*msg)
-{
-    jclass Logger = NULL;
-    jobject logger = NULL;
-    jmethodID method = NULL;
-    // Fill 'class', 'instance' and 'method'.
-    getLogger(env, thisObj, &Logger, &logger, level, &method, NULL);
-    if(env->ExceptionOccurred()) return;
-    // Setup args
-    jobject jmsg = env->NewStringUTF(msg);
-    if(env->ExceptionOccurred()) return;
-    // Log through slf4j
-    env->CallVoidMethod(logger, method, jmsg);
-    if(env->ExceptionOccurred()) return;
-    env->DeleteLocalRef(jmsg);
-    if(env->ExceptionOccurred()) return;
-}
-
-
-static void logVArgs(JNIEnv*env, jobject thisObj, const char*level, jobject fmtStr, jobjectArray fmtArgs)
-{
-    jclass Logger = NULL;
-    jobject logger = NULL;
-    jmethodID method = NULL;
-    // Fill 'class', 'instance' and 'method'.
-    getLogger(env, thisObj, &Logger, &logger, level, NULL, &method);
-    if(env->ExceptionOccurred()) return;
-    // Log through slf4j
-    env->CallVoidMethod(logger, method, fmtStr, fmtArgs);
 }
 
 
@@ -633,54 +549,48 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     jbyteArray ret = NULL;
     int byteRemains = byteCount;
 
-    logCStr(env, thisObj, "debug", "Enter read loop");
+    LOG_DEBUG("Enter read loop (%s:%d)\n", __FILE__, __LINE__);
     while(byteRemains > 0) {
 
         int result = poll(fds, 1, 1000);
         if(result < 0){
             // man poll: "On error, -1 is returned, and errno is set to indicate the error."
-            char msg[sizeof "poll() errno=___________"];
-            sprintf(msg,    "poll() errno=%d", errno);
-            logCStr(env, thisObj, "error", msg);
-            //goto endFn; // <- TODO use this line to prevent fail-silent-hell (HINT: Not backward-compatible).
+            LOG_WARN("poll() %d: %s\n", errno, strerror(errno));
+            // TODO: Raise java exception and 'goto endFn'
         }
         else if(result == 0){
             // man poll: "A return value of zero indicates that the system call timed out"
-            logCStr(env, thisObj, "debug", "poll() ret=0 (timed out)");
+            LOG_WARN("poll() returned 0 (timed out). Call again.\n");
             continue;
         }
-
-        char msg[sizeof "poll() ret=___________"];
-        sprintf( msg,   "poll() ret=%d", result);
-        logCStr(env, thisObj, "debug", msg);
+        LOG_DEBUG("poll() returned %d", result);
 
         errno = 0;
         result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
         if (result < 0) {
             // man read: "On error, -1 is returned, and errno is set to indicate the error."
-            char msg[sizeof "read() errno=___________"];
-            sprintf(msg,    "read() errno=%d", errno);
-            logCStr(env, thisObj, "error", msg);
-            //goto endFn; // <- TODO use this line to prevent fail-silent-hell (HINT: Not backward-compatible).
-        } else if (result == 0) {
+            LOG_WARN("read() %d: %s", errno, strerror(errno));
+            // TODO: Raise java exception and 'goto endFn'
+        }
+        else if (result == 0) {
             // AFAIK this happens either on EOF or on EWOULDBLOCK (see 'man read').
-            char msg[sizeof "read() result=0, errno=___________"];
-            sprintf(msg, "read() result=0, errno=%d", errno);
-            logCStr(env, thisObj, "debug", msg);
+            LOG_WARN("read() result=0, errno=%d", errno);
             // Just continue reading.
-        } else {
+            // TODO: Is "just continue" the right thing to do?
+        }
+        else {
             byteRemains -= result;
         }
     }
 
-    char msg[sizeof "Return ___________ read bytes"];
-    sprintf(msg,    "Return %d read bytes", byteCount);
-    logCStr(env, thisObj, "debug", msg);
-
+    LOG_DEBUG("Return %d read bytes", byteCount);
     ret = env->NewByteArray(byteCount);
     env->SetByteArrayRegion(ret, 0, byteCount, lpBuffer);
 
-    //endFn: // <- TODO Make use of this label (see comments near 'goto' above)
+    // TODO Make use of this 'endFn' label (See TODOs above)
+    //      Downside: This is not backward compatible, as the old code preferred
+    //      to ignore any errors silently (aka has no error-handling at all).
+    //endFn:
     delete lpBuffer;
     return ret;
 }
