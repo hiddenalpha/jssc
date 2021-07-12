@@ -236,7 +236,6 @@ int getDataBitsByNum(jint byteSize) {
     }
 }
 
-
 //since 2.6.0 ->
 const jint PARAMS_FLAG_IGNPAR = 1;
 const jint PARAMS_FLAG_PARMRK = 2;
@@ -532,7 +531,6 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
     return result == bufferSize ? JNI_TRUE : JNI_FALSE;
 }
 
-
 /* OK */
 /*
  * Reading data from the port
@@ -767,11 +765,13 @@ const jint events[] = {INTERRUPT_BREAK,
 JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
   (JNIEnv *env, jobject object, jlong portHandle) {
 
+    #if DEBUG
     // Just to print some debugging stuff (Author: oli-h)
-    //struct timespec ts;
-    //clock_gettime(CLOCK_REALTIME, &ts);
-    //printf("%ld.%09ld\n", ts.tv_sec, ts.tv_nsec);
-    //fflush(stdout);
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    printf("%ld.%09ld\n", ts.tv_sec, ts.tv_nsec);
+    fflush(stdout);
+    #endif
 
     // we do the 'wait/sleep' within the EventLoop here in native code. Advantage:
     // we can use poll() so we still return 'quickly' when new incomping bytes
@@ -784,7 +784,14 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
     fds.events = POLLIN | POLLPRI | POLLRDHUP;
     // poll does not wait for serial-events like 'DCD line changed' or 'RI line changed'.
     // So we need to use a timeout.
-    poll(&fds, 1, 100);
+    int result = poll(&fds, 1, 100);
+    if(result < 0){
+        // man poll: "On error, -1 is returned, and errno is set to indicate the error."
+        LOG_WARN("poll(): %s\n", strerror(errno));
+        // TODO: Raise java exception and 'goto endFn'
+    }
+    // Does not matter if result is zero (timeout) or postivive (ready). We'll behave
+    // the same anyway.
 
     jclass intClass = env->FindClass("[I");
     jobjectArray returnArray = env->NewObjectArray(sizeof(events)/sizeof(jint), intClass, NULL);

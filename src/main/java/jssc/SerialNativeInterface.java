@@ -24,10 +24,9 @@
  */
 package jssc;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.scijava.nativelib.NativeLoader;
 
-import java.io.*;
+import java.io.IOException;
 
 /**
  *
@@ -35,12 +34,14 @@ import java.io.*;
  */
 public class SerialNativeInterface {
 
+    private static final String libVersion = "2.9";
+    private static final String libMinorSuffix = "1"; //since 0.9.0
+
     public static final int OS_LINUX = 0;
     public static final int OS_WINDOWS = 1;
     public static final int OS_SOLARIS = 2;//since 0.9.0
     public static final int OS_MAC_OS_X = 3;//since 0.9.0
 
-    private static final Logger logger = LoggerFactory.getLogger(SerialNativeInterface.class);
     private static int osType = -1;
 
     /**
@@ -73,109 +74,57 @@ public class SerialNativeInterface {
      */
     public static final String PROPERTY_JSSC_PARMRK = "JSSC_PARMRK";
 
-    //static {
-    //    boolean success = tryLoad("/jssc-dev/jssc.so");
-    //    if(success) {
-    //        osType = OS_LINUX;
-    //    } else  {
-    //        defaultLoad();
-    //    }
-    //}
-
-    private static void defaultLoad() {
-
+    static {
         String osName = System.getProperty("os.name");
-
-        if (osName.equals("Linux")) {
-            osName = "linux_64";
+        if(osName.equals("Linux"))
             osType = OS_LINUX;
-        }
-        else if (osName.startsWith("Win")) {
-            osName = "windows_64";
+        else if(osName.startsWith("Win"))
             osType = OS_WINDOWS;
-        }//since 0.9.0 ->
-        else if (osName.equals("Mac OS X") || osName.equals("Darwin")) {//os.name "Darwin" since 2.6.0
-            osName = "osx_64";
+        else if(osName.equals("SunOS"))
+            osType = OS_SOLARIS;
+        else if(osName.equals("Mac OS X") || osName.equals("Darwin"))
             osType = OS_MAC_OS_X;
-        }//<- since 0.9.0
-        else{
-            System.err.println("Whops. Sorry not impl yet (E_oiurtghjaoeir)");
-            throw new RuntimeException("Whops. Sorry not impl yet");
-        }
-
-        String libName = System.mapLibraryName("jssc");
-        String libFilePath = System.getProperty("java.io.tmpdir") + System.getProperty("file.separator") + libName;
-        new File(libFilePath).getParentFile().mkdirs();
-        extractLib(libFilePath, osName, libName);
-        tryLoad(libFilePath);
-    }
-
-    private static boolean tryLoad(String filename) {
         try {
-            if (!new File(filename).exists()) {
-                System.err.println("JSSC: File " + filename + "does not exist --> will not try to load");
-                return false;
-            }
-            System.out.println("JSSC: Try to load " + filename);
-            System.load(filename);
-            System.out.println("JSSC: Successfully loaded " + filename + ". Version is " + getNativeLibraryVersion());
-            return true;
-        } catch (Throwable ex) {
-            System.err.println("JSSC: Loading " + filename + " failed");
-            ex.printStackTrace();
-            return false;
-        }
-    }
-
-    private static void extractLib(String libFilePath, String osName, String libName) {
-        InputStream input = null;
-        FileOutputStream output = null;
-        try {
-            input = SerialNativeInterface.class.getResourceAsStream("/natives/" + osName + "/" + libName);
-            output = new FileOutputStream(libFilePath);
-            int read;
-            byte[] buffer = new byte[4096];
-            while ((read = input.read(buffer)) != -1) {
-                output.write(buffer, 0, read);
-            }
-        } catch (IOException ex) {
-            try {
-                File libFile = new File(libFilePath);
-                if (libFile.exists()) {
-                    libFile.delete();
-                }
-            } catch(Exception exDelete) {
-                exDelete.printStackTrace();
-                // but continue
-            }
-            throw new RuntimeException(ex);
-        }finally {
-            closeGracefully(output);
-            closeGracefully(input);
-        }
-    }
-
-    /**
-     * @param closeable
-     *      Can be null.
-     */
-    private static void closeGracefully(Closeable closeable) {
-        if (closeable == null) return;
-        try {
-            closeable.close();
-        } catch (IOException e) {
-            logger.error("close() failed:", e);
-            System.err.println("close() failed:"+ e);
+            NativeLoader.loadLibrary("jssc");
+        } catch (IOException ioException) {
+            throw new UnsatisfiedLinkError("Could not load the jssc library: " + ioException.getMessage());
         }
     }
 
     /**
      * Get OS type (OS_LINUX || OS_WINDOWS || OS_SOLARIS)
-     *
+     * 
      * @since 0.8
      */
     public static int getOsType() {
         return osType;
+    }
+
+    /**
+     * Get jSSC version. The version of library is <b>Base Version</b> + <b>Minor Suffix</b>
+     *
+     * @since 0.8
+     */
+    public static String getLibraryVersion() {
+        return libVersion + "." + libMinorSuffix;
+    }
+
+    /**
+     * Get jSSC Base Version
+     *
+     * @since 0.9.0
+     */
+    public static String getLibraryBaseVersion() {
+        return libVersion;
+    }
+
+    /**
+     * Get jSSC minor suffix. For example in version 0.8.1 - <b>1</b> is a minor suffix
+     *
+     * @since 0.9.0
+     */
+    public static String getLibraryMinorSuffix() {
+        return libMinorSuffix;
     }
 
     /**
@@ -289,7 +238,7 @@ public class SerialNativeInterface {
      * 
      * @return Method returns the array of read bytes
      */
-    public native byte[] readBytes(long handle, int byteCount) throws IOException;
+    public native byte[] readBytes(long handle, int byteCount);
 
     /**
      * Write data to port
@@ -358,7 +307,7 @@ public class SerialNativeInterface {
     public native int[] getLinesStatus(long handle);
 
     /**
-     * Send Break signal for set duration
+     * Send Break singnal for setted duration
      * 
      * @param handle handle of opened port
      * @param duration duration of Break signal
