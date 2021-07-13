@@ -540,6 +540,15 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
 JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
   (JNIEnv *env, jobject thisObj, jlong portHandle, jint byteCount){
 
+    // Error-Handling:
+    // I have no idea why we just ignored any kind of errors (eg ignoring return
+    // values of 'select' and 'read') in the old code. I also could not find any
+    // comments which would explain why. I liked to communicate those by raising
+    // java exceptions. But this would not be backward compatible. So I restrict
+    // myself to just log the irregular cases for now. If I get some time, I might
+    // open another PR to add some error-handling. So we could discuss that topic
+    // there.
+
     struct pollfd fds[1];
     fds[0].fd = portHandle;
     fds[0].events = POLLIN;
@@ -552,12 +561,12 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
 
         int result = poll(fds, 1, 1000);
         if(result < 0){
-            // man poll: "On error, -1 is returned, and errno is set to indicate the error."
+            // man poll: On error, -1 is returned, and errno is set to indicate the error.
             LOG_WARN("poll(): %s\n", strerror(errno));
-            // TODO: Raise java exception and 'goto endFn'
+            // TODO: Candidate for a java exception. See comment at begin of function.
         }
         else if(result == 0){
-            // man poll: "A return value of zero indicates that the system call timed out"
+            // man poll: A return value of zero indicates that the system call timed out
             LOG_DEBUG("%s\n", "poll() returned 0 (timed out). Call again.");
             continue;
         }
@@ -568,15 +577,16 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
         errno = 0;
         result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
         if (result < 0) {
-            // man read: "On error, -1 is returned, and errno is set to indicate the error."
+            // man read: On error, -1 is returned, and errno is set to indicate the error.
             LOG_WARN("%s%s\n", "read(): ", strerror(errno));
-            // TODO: Raise java exception and 'goto endFn'
+            // TODO: Candidate for raising a java exception. See comment at begin of function.
         }
         else if (result == 0) {
             // AFAIK this happens either on EOF or on EWOULDBLOCK (see 'man read').
             LOG_WARN("%s%d\n", "read() result=0, errno=", errno);
             // Just continue reading.
-            // TODO: Is "just continue" really the right thing to do?
+            // TODO: Is "just continue" really the right thing to do? I will keep it that
+            //       way because the old code did so and I don't know better.
         }
         else {
             byteRemains -= result;
@@ -587,10 +597,6 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     ret = env->NewByteArray(byteCount);
     env->SetByteArrayRegion(ret, 0, byteCount, lpBuffer);
 
-    // TODO Make use of this 'endFn' label (See TODOs above)
-    //      Downside: This is not backward compatible, as the old code preferred
-    //      to ignore any errors silently (aka has no error-handling at all).
-    //endFn:
     delete lpBuffer;
     return ret;
 }
