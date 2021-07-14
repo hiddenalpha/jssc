@@ -50,13 +50,6 @@
 
 //#include <iostream> //-lCstd use for Solaris linker
 
-// TODO: IMHO logging to slf4j would be nice.
-#ifndef DEBUG
-    #define DEBUG 0
-#endif
-#define LOG_WARN( fmt, ... ) fprintf(stderr, "[WRN %s:%d] " fmt, strrchr(__FILE__,'/')+1, __LINE__,  __VA_ARGS__ )
-#define LOG_DEBUG( fmt, ... ) if(DEBUG)fprintf(stderr, "[DBG %s:%d] " fmt, strrchr(__FILE__,'/')+1, __LINE__, __VA_ARGS__ );
-
 /*
  * Get native library version
  */
@@ -540,14 +533,8 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
 JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
   (JNIEnv *env, jobject thisObj, jlong portHandle, jint byteCount){
 
-    // Error-Handling:
-    // I have no idea why we just ignored any kind of errors (eg ignoring return
-    // values of 'select' and 'read') in the old code. I also could not find any
-    // comments which would explain why. I liked to communicate those by raising
-    // java exceptions. But this would not be backward compatible. So I restrict
-    // myself to just log the irregular cases for now. If I get some time, I might
-    // open another PR to add some error-handling. So we could discuss that topic
-    // there.
+    // TODO: Errors should be communicated by raising java exceptions; Will break
+    // backwards compat
 
     struct pollfd fds[1];
     fds[0].fd = portHandle;
@@ -556,35 +543,26 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     jbyteArray ret = NULL;
     int byteRemains = byteCount;
 
-    LOG_DEBUG("%s\n", "Enter read loop");
     while(byteRemains > 0) {
 
         int result = poll(fds, 1, 1000);
         if(result < 0){
             // man poll: On error, -1 is returned, and errno is set to indicate the error.
-            LOG_WARN("poll(): %s\n", strerror(errno));
             // TODO: Candidate for a java exception. See comment at begin of function.
         }
         else if(result == 0){
             // man poll: A return value of zero indicates that the system call timed out
-            LOG_DEBUG("%s\n", "poll() returned 0 (timed out). Call again.");
             continue;
-        }
-        else{
-            LOG_DEBUG("%s%d\n", "poll() returned ", result);
         }
 
         errno = 0;
         result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
         if (result < 0) {
             // man read: On error, -1 is returned, and errno is set to indicate the error.
-            LOG_WARN("%s%s\n", "read(): ", strerror(errno));
             // TODO: Candidate for raising a java exception. See comment at begin of function.
         }
         else if (result == 0) {
             // AFAIK this happens either on EOF or on EWOULDBLOCK (see 'man read').
-            LOG_WARN("%s%d\n", "read() result=0, errno=", errno);
-            // Just continue reading.
             // TODO: Is "just continue" really the right thing to do? I will keep it that
             //       way because the old code did so and I don't know better.
         }
@@ -593,7 +571,6 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
         }
     }
 
-    LOG_DEBUG("%s%d%s\n", "Return ", byteCount," read bytes");
     ret = env->NewByteArray(byteCount);
     env->SetByteArrayRegion(ret, 0, byteCount, lpBuffer);
 
