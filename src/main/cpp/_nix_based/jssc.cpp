@@ -25,7 +25,6 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <time.h>
@@ -548,7 +547,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
         int result = poll(fds, 1, 1000);
         if(result < 0){
             // man poll: On error, -1 is returned, and errno is set to indicate the error.
-            // TODO: Candidate for a java exception. See comment at begin of function.
+            // TODO: May candidate for a java exception. See comment at begin of function.
         }
         else if(result == 0){
             // man poll: A return value of zero indicates that the system call timed out
@@ -559,7 +558,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
         result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
         if (result < 0) {
             // man read: On error, -1 is returned, and errno is set to indicate the error.
-            // TODO: Candidate for raising a java exception. See comment at begin of function.
+            // TODO: May candidate for raising a java exception. See comment at begin of function.
         }
         else if (result == 0) {
             // AFAIK this happens either on EOF or on EWOULDBLOCK (see 'man read').
