@@ -537,7 +537,7 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
 /**
  * Waits until 'read()' has something to tell for the specified filedescriptor.
  */
-static void awaitReadReady(JNIEnv*env, jobject thisObj, jlong fd){
+static void awaitReadReady(JNIEnv*env, jlong fd){
 #if HAVE_POLL == 0
     // Alternative impl using 'select' as 'poll' isn't available (or broken).
 
@@ -599,7 +599,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     while(byteRemains > 0) {
         int result = 0;
 
-        awaitReadReady(env, thisObj, portHandle);
+        awaitReadReady(env, portHandle);
 
         errno = 0;
         result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
