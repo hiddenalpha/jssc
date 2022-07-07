@@ -1,0 +1,213 @@
+#
+# Research to get rid of too overly complycated build "solutions".
+#
+
+set -e
+if test -n "$BASH_VERSION"; then set -o posix; fi
+
+
+# See https://www.gnu.org/prep/standards/html_node/Directory-Variables.html
+prefix=/usr/local
+exec_prefix='$(PREFIX)'
+bindir='$(EXEC_PREFIX)/bin'
+targetOs=linux
+targetArch=amd64
+verbose=0
+
+
+main () {
+    parseArgs "$@"
+    printMakefile > Makefile
+    printVersionHFilecontent > 'src/main/cpp/version.h'
+}
+
+
+printHelp () {
+    echo ''
+    echo "Example usage:   $0 --prefix /usr/local"
+    echo ''
+    echo 'Options:'
+    echo '    --prefix <path>      Default "/usr/local"'
+    echo '    --bindir <path>      Default "$(EXEC_PREFIX)/bin"'
+    echo ''
+}
+
+
+parseArgs () {
+    # See: https://stackoverflow.com/a/14203146/4415884
+    while test $# -gt 0 ; do
+        case "$1" in
+            --help)        printHelp; exit 1;;
+            --prefix)      prefix="$2"      shift; shift;;
+            --exec_prefix) exec_prefix="$2" shift; shift;;
+            --bindir)      bindir="$2"      shift; shift;;
+            --verbose)     verbose="$2"     shift; shift;;
+            *) echo "[ERROR] Unexpected argument: $1"; exit 1;;
+        esac
+    done
+}
+
+
+printMakefile () {
+    printf '\n'
+    printMakefileVars
+
+    # Configure how noisy make will be
+    if test "$verbose" = "0"; then printf '\n%s\n' '.SILENT:'; fi
+    # Suppress misleading defaults
+    printf '\n%s\n' '.SUFFIXES:'
+
+    # MUST be the 1st target. So it triggers whenever someone calls 'make'
+    # without specifying an explicit target.
+    printf '\n'
+    printf '%s\n' '.PHONY: default'
+    printf '%s\n' 'default: link'
+
+    # Then write the kind of generic rules.
+    printf '\n'
+    printGenericMakeTargets
+
+    # Then write the targets which will build the libs.
+    printf '\n'
+    printLinkTargets
+}
+
+
+printMakefileVars () {
+    printf '%s\n' 'AR=ar'
+    printf '%s\n' 'CC=g++'
+    printf '%s\n' 'RIMRAF=rm -rf'
+    printf '%s\n' 'MKDIRS=mkdir -p'
+    printf '%s\n' 'COPYTO=cp -t'
+    printf '%s\n' 'BUILDDIR=target/build'
+    printf '%s%s\n' 'LIBSEXT=' "$(printStaticLibFileExt)"
+    printf '%s%s\n' 'LIBDEXT=' "$(printDynamicLibFileExt)"
+
+    printf '\n'
+    printf '%s\n' "PREFIX=$prefix"
+    printf '%s\n' "EXEC_PREFIX=$exec_prefix"
+    printf '%s\n' "BINDIR=$bindir"
+    printf '\n'
+    printf '%s'   'PROJECT_VERSION=$(shell'
+    printf '%s'   ' ret=$$(git describe --tags 2>/dev/null |sed -E "s;^v;;");'
+    printf '%s'   ' if test -n "$$ret" -a -n "$$(git status --porcelain 2>/dev/null)"; then'
+    printf '%s'       ' ret="$$ret+dirt";'
+    printf '%s'   ' fi;'
+    printf '%s'   ' if test -z "$$ret"; then ret=$$(date -u +0.0.0-%Y%m%d.%H%M%S); fi;'
+    printf '%s\n' ' echo "$$ret")'
+
+    printf '\n'
+    # TODO add --std=c99 as soon we're ready to get rid of C++
+    printf '%s'   'CFLAGS=-fPIC -Wall -Wextra -Werror -fmax-errors=3'
+    printf '%s'   ' -Wno-error=unused-function -Wno-error=unused-label -Wno-error=unused-variable'
+    printf '%s'   ' -Wno-error=unused-parameter -Wno-error=unused-const-variable'
+    printf '%s'   ' -Wno-error=unused-but-set-variable'
+    printf '%s'   ' -Wno-error=discarded-qualifiers -Wno-error=sign-compare -Wno-error=pointer-sign'
+    printf '%s'   ' -Werror=implicit-fallthrough=1'
+    printf '%s\n' ' -DPROJECT_VERSION=$(PROJECT_VERSION)'
+
+    printf '\n'
+    printf '%s\n' 'LDFLAGS=-Wl,--no-demangle,--fatal-warnings'
+
+    printf '\n'
+    printf '%s\n' 'ifndef NDEBUG'
+    printf '%s\n' '	CFLAGS := $(CFLAGS) -ggdb -O0 -g3'
+    printf '%s\n' 'else'
+    printf '%s\n' '	CFLAGS := $(CFLAGS) -ffunction-sections -fdata-sections -Os -s "-DNDEBUG=1"'
+    printf '%s\n' '	LDFLAGS := $(LDFLAGS) -Wl,--gc-sections,--as-needed -s'
+    printf '%s\n' 'endif'
+
+    javaIncDirs=$(printJavaIncludeDirs | sed 's;^;-I;' | tr '\n' ' ')
+    jsscIncDirs='-Isrc/main/cpp'
+    printf '\n'
+    printf '%s\n' "INCDIRS=$jsscIncDirs $javaIncDirs"
+    #printf '%s\n' 'LIBSDIR='
+}
+
+
+printGenericMakeTargets () {
+    printf '%s\n' '.PHONY: clean'
+    printf '%s\n' 'clean:'
+    printf '%s\n' '	echo $(RIMRAF) \"$(BUILDDIR)\"'
+    printf '%s\n' '	$(RIMRAF) "$(BUILDDIR)"'
+
+    printf '\n'
+    printf '%s\n' '.PHONY: link'
+    printf '%s'   'link:'
+    printf '%s'   ' $(BUILDDIR)/lib/jssc$(LIBSEXT)'
+    printf '%s\n' ' $(BUILDDIR)/lib/jssc$(LIBDEXT)'
+
+    local srcDir
+    srcDir=$(printArchSourceDir)
+    printf '\n'
+    printf '%s%s%s\n' '$(BUILDDIR)/obj/%.o: ' "$srcDir" '/%.cpp'
+    printf '%s\n' '	echo "  CC    $@"'
+    printf '%s\n' '	$(MKDIRS) "$(shell T=$@; echo $${T%/*})"'
+    printf '%s\n' '	$(CC) -c -o $@ $^ $(CFLAGS) $(INCDIRS)'
+}
+
+
+printLinkTargets () {
+    # Static lib
+    printf '%s'   '$(BUILDDIR)/lib/jssc$(LIBSEXT):'
+    printf '%s\n' ' $(BUILDDIR)/obj/jssc.o'
+    printf '%s\n' '	echo "  AR    $@"'
+    printf '%s\n' '	$(MKDIRS) $(shell T=$@; echo $${T%/*})'
+    printf '%s\n' '	$(AR) -crs $@ $^'
+
+    # dynamic lib
+    printf '%s'   '$(BUILDDIR)/lib/jssc$(LIBDEXT):'
+    printf '%s\n' ' $(BUILDDIR)/obj/jssc.o'
+    printf '%s\n' '	echo "  LN    $@"'
+    printf '%s\n' '	$(CC) $(CFLAGS) -shared -o $@ $^'
+}
+
+
+printVersionHFilecontent () {
+    printf '%s\n' "#define JSSC_VERSION \"TODO_097ba4729411bacd76c3e0fcdf74e109\""
+}
+
+
+printArchSourceDir () {
+    case "$targetOs" in
+        windows) printf 'src/main/cpp/windows';;
+        darwin) echo >&2 "TODO_3e1e0d45e182673713e3632405931d2d"; false;;
+        linux) printf 'src/main/cpp/_nix_based';;
+        *) echo >&2 "TODO_2757bb1a4efea1282718fa629ffa1ba9"; false;;
+    esac
+}
+
+
+printDynamicLibFileExt () {
+    case "$targetOs" in
+        windows) printf '.dll';;
+        darwin) echo >&2 TODO_52b9d925ecdb6a050e1598002752faf1; false;;
+        linux) printf '.so';;
+        *) echo "TODO_76eaeba6442e57d398e3581d4834f29e '$targetOs'"; false;;
+    esac
+}
+
+
+printStaticLibFileExt () {
+    case "$targetOs" in
+        windows) printf '.lib';;
+        darwin) echo >&2 "TODO_b64b442ab6643e3e6138053bcea53139"; false;;
+        linux) printf '.a';;
+        *) echo >&2 "TODO_77c002386a7eda6c20248fbdb4131c3d9 '$targetOs'"; false;;
+    esac
+}
+
+
+printJavaIncludeDirs () {
+    # first he generic include
+    printf '%s\n' '$(shell echo "${JAVA_HOME}/include")'
+    # then the platform specific ones
+    case "$targetOs" in
+        linux) printf '%s\n' '$(shell echo "${JAVA_HOME}/include/linux")';;
+        *) echo >&2 "TODO_50e6b0d27611ac527e453861daf168df '$targetOs'"; false;;
+    esac
+}
+
+
+main "$@"
+

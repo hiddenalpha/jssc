@@ -78,8 +78,8 @@ JNIEXPORT jlong JNICALL Java_jssc_SerialNativeInterface_openPort(JNIEnv *env, jo
     jlong hComm = open(port, O_RDWR | O_NOCTTY | O_NDELAY);
     if(hComm != -1){
         //since 2.2.0 -> (check termios structure for separating real serial devices from others)
-        termios *settings = new termios();
-        if(tcgetattr(hComm, settings) == 0){
+        termios settings;
+        if(tcgetattr(hComm, &settings) == 0){
         #if defined TIOCEXCL //&& !defined __SunOS
             if(useTIOCEXCL == JNI_TRUE){
                 ioctl(hComm, TIOCEXCL);
@@ -93,7 +93,6 @@ JNIEXPORT jlong JNICALL Java_jssc_SerialNativeInterface_openPort(JNIEnv *env, jo
             close(hComm);//since 2.7.0
             hComm = jssc_SerialNativeInterface_ERR_INCORRECT_SERIAL_PORT;//-4;
         }
-        delete settings;
         //<- since 2.2.0
     }
     else {//since 0.9 ->
@@ -257,7 +256,8 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setParams
     speed_t baudRateValue = getBaudRateByNum(baudRate);
     int dataBits = getDataBitsByNum(byteSize);
     
-    termios *settings = new termios();
+    termios settings;
+    #define settings (&settings)
     if(tcgetattr(portHandle, settings) == 0){
         if(baudRateValue != UINT_MAX){
             //Set standart baudrate from "termios.h"
@@ -270,29 +270,26 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setParams
             goto methodEnd;//Solaris don't support non standart baudrates
         #elif defined __linux__
             //Try to calculate a divisor for setting non standart baudrate
-            serial_struct *serial_info = new serial_struct();
+            struct serial_struct serial_info;
+            #define serial_info (&serial_info)
             if(ioctl(portHandle, TIOCGSERIAL, serial_info) < 0){ //Getting serial_info structure
-                delete serial_info;
                 goto methodEnd;
             }
             else {
                 serial_info->flags |= ASYNC_SPD_CUST;
                 serial_info->custom_divisor = (serial_info->baud_base/baudRate); //Calculate divisor
                 if(serial_info->custom_divisor == 0){ //If divisor == 0 go to method end to prevent "division by zero" error
-                    delete serial_info;
                     goto methodEnd;
                 }
                 settings->c_cflag |= B38400;
                 if(cfsetispeed(settings, B38400) < 0 || cfsetospeed(settings, B38400) < 0){
-                    delete serial_info;
                     goto methodEnd;
                 }
                 if(ioctl(portHandle, TIOCSSERIAL, serial_info) < 0){//Try to set new settings with non standart baudrate
-                    delete serial_info;
                     goto methodEnd;
                 }
-                delete serial_info;
             }
+            #undef serial_info
         #endif
         }
     }
@@ -418,9 +415,9 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setParams
         }
     }
     methodEnd: {
-        delete settings;
         return returnValue;
     }
+    #undef settings
 }
 
 const jint PURGE_RXABORT = 0x0002; //ignored

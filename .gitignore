@@ -1,4 +1,7 @@
+/Makefile
+/src/main/cpp/version.h
 build/
+
 # the maven convention for built files
 target/
 
