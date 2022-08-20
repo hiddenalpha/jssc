@@ -295,6 +295,26 @@
         <version>${plugin.jar.version}</version>
       </plugin>
 
+      <!-- Create dedicated JARs for platform specific resources like shared
+           objects -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>package-foo</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+            <configuration>
+              <classesDirectory>${project.build.outputDirectory}-linux_64</classesDirectory>
+              <classifier>linux_64</classifier>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>

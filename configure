@@ -61,7 +61,7 @@ printMakefile () {
     # without specifying an explicit target.
     printf '\n'
     printf '%s\n' '.PHONY: default'
-    printf '%s\n' 'default: link'
+    printf '%s\n' 'default: classes'
 
     # Then write the kind of generic rules.
     printf '\n'
@@ -70,6 +70,9 @@ printMakefile () {
     # Then write the targets which will build the libs.
     printf '\n'
     printLinkTargets
+
+    # And finally print target to produce a jar file
+    printJarTargetWithClassifier
 }
 
 
@@ -80,8 +83,11 @@ printMakefileVars () {
     printf '%s\n' 'MKDIRS=mkdir -p'
     printf '%s\n' 'COPYTO=cp -t'
     printf '%s\n' 'BUILDDIR=target/build'
-    printf '%s%s\n' 'LIBSEXT=' "$(printStaticLibFileExt)"
-    printf '%s%s\n' 'LIBDEXT=' "$(printDynamicLibFileExt)"
+    printf '%s%s\n' 'LIBSSUFF=' "$(printStaticLibFileExt)"
+    printf '%s%s\n' 'LIBDPREF=' "$(printDynamicLibPrefix)"
+    printf '%s%s\n' 'LIBDSUFF=' "$(printDynamicLibFileExt)"
+    printf '%s\n' '# One of: linux_64, windows_64'
+    printf '%s\n' 'JARCLASSIFIER=missing'
 
     printf '\n'
     printf '%s\n' "PREFIX=$prefix"
@@ -134,8 +140,8 @@ printGenericMakeTargets () {
     printf '\n'
     printf '%s\n' '.PHONY: link'
     printf '%s'   'link:'
-    printf '%s'   ' $(BUILDDIR)/lib/jssc$(LIBSEXT)'
-    printf '%s\n' ' $(BUILDDIR)/lib/jssc$(LIBDEXT)'
+    printf '%s'   ' $(BUILDDIR)/lib/$(libSPREF)jssc$(LIBSSUFF)'
+    printf '%s\n' ' $(BUILDDIR)/lib/$(LIBDPREF)jssc$(LIBDSUFF)'
 
     local srcDir
     srcDir=$(printArchSourceDir)
@@ -149,17 +155,34 @@ printGenericMakeTargets () {
 
 printLinkTargets () {
     # Static lib
-    printf '%s'   '$(BUILDDIR)/lib/jssc$(LIBSEXT):'
+    printf '%s'   '$(BUILDDIR)/lib/$(LIBSPREF)jssc$(LIBSSUFF):'
     printf '%s\n' ' $(BUILDDIR)/obj/jssc.o'
     printf '%s\n' '	echo "  AR    $@"'
     printf '%s\n' '	$(MKDIRS) $(shell T=$@; echo $${T%/*})'
     printf '%s\n' '	$(AR) -crs $@ $^'
 
     # dynamic lib
-    printf '%s'   '$(BUILDDIR)/lib/jssc$(LIBDEXT):'
+    printf '%s'   '$(BUILDDIR)/lib/$(LIBDPREF)jssc$(LIBDSUFF):'
     printf '%s\n' ' $(BUILDDIR)/obj/jssc.o'
     printf '%s\n' '	echo "  LN    $@"'
     printf '%s\n' '	$(CC) $(CFLAGS) -shared -o $@ $^'
+}
+
+
+printJarTargetWithClassifier () {
+    local id="linux_64"
+    printf '\n'
+    printf '%s'   "target/classes-${id:?}:"
+    printf '%s\n' ' $(BUILDDIR)/lib/libjssc.so'
+    printf '%s'   "	cp \"\$(BUILDDIR)/lib/libjssc.so\""
+    printf '%s\n' " \"target/classes-${id:?}/natives/${id:?}/.\""
+
+    local id="windows_64"
+    printf '\n'
+    printf '%s'   "target/classes-${id:?}:"
+    printf '%s\n' ' $(BUILDDIR)/lib/jssc.dll'
+    printf '%s'   "	cp \"\$(BUILDDIR)/lib/jssc.dll\""
+    printf '%s\n' " \"target/classes-${id:?}/natives/${id:?}/.\""
 }
 
 
@@ -177,6 +200,14 @@ printArchSourceDir () {
     esac
 }
 
+printDynamicLibPrefix () {
+    case "$targetOs" in
+        windows) printf '';;
+        darwin) echo >&2 TODO_c31bfb8a731e4cbaaed57cac8edc622c; false;;
+        linux) printf 'lib';;
+        *) echo "TODO_3013b6b25719f04ca4001379d21c4240 '$targetOs'"; false;;
+    esac
+}
 
 printDynamicLibFileExt () {
     case "$targetOs" in
@@ -199,11 +230,11 @@ printStaticLibFileExt () {
 
 
 printJavaIncludeDirs () {
-    # first he generic include
-    printf '%s\n' '$(shell echo "${JAVA_HOME}/include")'
+    # first the generic include
+    printf '%s\n' "$(echo ${JAVA_HOME}/include)"
     # then the platform specific ones
     case "$targetOs" in
-        linux) printf '%s\n' '$(shell echo "${JAVA_HOME}/include/linux")';;
+        linux) printf '%s\n' "$(echo ${JAVA_HOME}/include/linux)";;
         *) echo >&2 "TODO_50e6b0d27611ac527e453861daf168df '$targetOs'"; false;;
     esac
 }
