@@ -24,6 +24,7 @@
  */
 #include <limits.h>
 #include <stdio.h>
+#include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -632,9 +633,14 @@ JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getBuffersBytesCount
     jint returnValues[2];
     returnValues[0] = -1; //Input buffer
     returnValues[1] = -1; //Output buffer
+    int err = ioctl(portHandle, FIONREAD, &returnValues[0]) == -1
+           || ioctl(portHandle, TIOCOUTQ, &returnValues[1]) == -1;
+    if( err ){
+        err = errno; // backup 'errno' because FindClass() potentially could override it.
+        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), strerror(err));
+        return NULL;
+    }
     jintArray returnArray = env->NewIntArray(2);
-    ioctl(portHandle, FIONREAD, &returnValues[0]);
-    ioctl(portHandle, TIOCOUTQ, &returnValues[1]);
     env->SetIntArrayRegion(returnArray, 0, 2, returnValues);
     return returnArray;
 }
