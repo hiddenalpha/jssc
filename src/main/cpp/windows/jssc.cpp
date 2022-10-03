@@ -231,28 +231,31 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setDTR
  * portHandle - port handle
  * buffer - byte array for sending
  */
-JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
+JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_write
   (JNIEnv *env, jobject, jlong portHandle, jbyteArray buffer){
     HANDLE hComm = (HANDLE)portHandle;
     DWORD lpNumberOfBytesTransferred;
     DWORD lpNumberOfBytesWritten;
     OVERLAPPED *overlapped = new OVERLAPPED();
-    jboolean returnValue = JNI_FALSE;
+    jint returnValue = -1;
     jbyte* jBuffer = env->GetByteArrayElements(buffer, JNI_FALSE);
     overlapped->hEvent = CreateEventA(NULL, true, false, NULL);
     if(WriteFile(hComm, jBuffer, (DWORD)env->GetArrayLength(buffer), &lpNumberOfBytesWritten, overlapped)){
-        returnValue = JNI_TRUE;
+        returnValue = lpNumberOfBytesWritten;
     }
     else if(GetLastError() == ERROR_IO_PENDING){
         if(WaitForSingleObject(overlapped->hEvent, INFINITE) == WAIT_OBJECT_0){
             if(GetOverlappedResult(hComm, overlapped, &lpNumberOfBytesTransferred, false)){
-                returnValue = JNI_TRUE;
+                returnValue = lpNumberOfBytesTransferred;
             }
         }
     }
     env->ReleaseByteArrayElements(buffer, jBuffer, 0);
     CloseHandle(overlapped->hEvent);
     delete overlapped;
+    if( returnValue < 0 ){
+        return env->ThrowNew(env->FindClass("jssc/SerialPortException"), "WriteFile() failed");
+    }
     return returnValue;
 }
 
