@@ -408,7 +408,28 @@ public class SerialPort {
      */
     public boolean writeBytes(byte[] buffer) throws SerialPortException {
         checkPortOpened("writeBytes()");
-        return serialInterface.writeBytes(portHandle, buffer);
+        // Delegate to new method and translate result to what original method
+        // did return.
+        try{
+            int result = write(buffer);
+            return result == buffer.length;
+        }catch (SerialPortException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * Write byte array to port
+     *
+     * @param buffer <code>byte[]</code> array to write
+     *
+     * @return If the operation is successfully completed, the method returns true, otherwise false
+     * 
+     * @throws SerialPortException if exception occurred
+     */
+    public int write(byte[] buffer) throws SerialPortException {
+        checkPortOpened("writeBytes()");
+        return serialInterface.write(portHandle, buffer);
     }
 
     /**
@@ -1392,4 +1413,5 @@ public class SerialPort {
             }
         }
     }
+
 }

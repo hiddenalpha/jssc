@@ -24,6 +24,7 @@
  */
 #include <limits.h>
 #include <stdio.h>
+#include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -525,13 +526,16 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setDTR
 /*
  * Writing data to the port
  */
-JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
+JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_write
   (JNIEnv *env, jobject, jlong portHandle, jbyteArray buffer){
     jbyte* jBuffer = env->GetByteArrayElements(buffer, JNI_FALSE);
     jint bufferSize = env->GetArrayLength(buffer);
     jint result = write(portHandle, jBuffer, (size_t)bufferSize);
     env->ReleaseByteArrayElements(buffer, jBuffer, 0);
-    return result == bufferSize ? JNI_TRUE : JNI_FALSE;
+    if( result < 0 ){ /* aka error */
+        return env->ThrowNew(env->FindClass("jssc/SerialPortException"), strerror(errno));
+    }
+    return result;
 }
 
 /**
