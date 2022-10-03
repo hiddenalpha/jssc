@@ -637,7 +637,7 @@ JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getBuffersBytesCount
            || ioctl(portHandle, TIOCOUTQ, &returnValues[1]) == -1;
     if( err ){
         err = errno; // backup 'errno' because FindClass() potentially could override it.
-        env->ThrowNew(env->FindClass("java/io/UncheckedIOException"), strerror(err));
+        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), strerror(err));
         return NULL;
     }
     jintArray returnArray = env->NewIntArray(2);
