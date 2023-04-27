@@ -629,12 +629,27 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
  */
 JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getBuffersBytesCount
   (JNIEnv *env, jobject, jlong portHandle){
+    int err;
     jint returnValues[2];
     returnValues[0] = -1; //Input buffer
     returnValues[1] = -1; //Output buffer
     jintArray returnArray = env->NewIntArray(2);
-    ioctl(portHandle, FIONREAD, &returnValues[0]);
-    ioctl(portHandle, TIOCOUTQ, &returnValues[1]);
+    if( returnArray == NULL ) return NULL;
+
+    err = ioctl(portHandle, FIONREAD, &returnValues[0]);
+    if( err < 0 ){
+        err = errno;
+        env->ThrowNew(env->FindClass("java.lang.RuntimeException"), strerror(err));
+        return NULL;
+    }
+
+    err = ioctl(portHandle, TIOCOUTQ, &returnValues[1]);
+    if( err < 0 ){
+        err = errno;
+        env->ThrowNew(env->FindClass("java.lang.RuntimeException"), strerror(err));
+        return NULL;
+    }
+
     env->SetIntArrayRegion(returnArray, 0, 2, returnValues);
     return returnArray;
 }
