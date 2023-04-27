@@ -528,6 +528,7 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setDTR
 JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
   (JNIEnv *env, jobject, jlong portHandle, jbyteArray buffer){
     jbyte* jBuffer = env->GetByteArrayElements(buffer, JNI_FALSE);
+    if( jBuffer == NULL ) return;
     jint bufferSize = env->GetArrayLength(buffer);
     jint result = write(portHandle, jBuffer, (size_t)bufferSize);
     env->ReleaseByteArrayElements(buffer, jBuffer, 0);
@@ -633,6 +634,7 @@ JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getBuffersBytesCount
     returnValues[0] = -1; //Input buffer
     returnValues[1] = -1; //Output buffer
     jintArray returnArray = env->NewIntArray(2);
+    if( returnArray == NULL ) return NULL;
     ioctl(portHandle, FIONREAD, &returnValues[0]);
     ioctl(portHandle, TIOCOUTQ, &returnValues[1]);
     env->SetIntArrayRegion(returnArray, 0, 2, returnValues);
@@ -795,17 +797,29 @@ const jint events[] = {INTERRUPT_BREAK,
  */
 JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
   (JNIEnv *env, jobject, jlong portHandle) {
+    int err;
 
     jclass intClass = env->FindClass("[I");
     jobjectArray returnArray = env->NewObjectArray(sizeof(events)/sizeof(jint), intClass, NULL);
+    if( returnArray == NULL ) return NULL;
 
     /*Input buffer*/
     jint bytesCountIn = 0;
-    ioctl(portHandle, FIONREAD, &bytesCountIn);
-    
+    err = ioctl(portHandle, FIONREAD, &bytesCountIn);
+    if( err < 0 ){
+        err = errno;
+        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), strerror(err));
+        return NULL;
+    }
+
     /*Output buffer*/
     jint bytesCountOut = 0;
-    ioctl(portHandle, TIOCOUTQ, &bytesCountOut);
+    err = ioctl(portHandle, TIOCOUTQ, &bytesCountOut);
+    if( err < 0 ){
+        err = errno;
+        env->ThrowNew(env->FindClass("java.lang.RuntimeException"), strerror(err));
+        return NULL;
+    }
 
     /*Lines status*/
     int statusLines = getLinesStatus(portHandle);
@@ -890,6 +904,7 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
         forEnd: {
             returnValues[0] = events[i];
             jintArray singleResultArray = env->NewIntArray(2);
+            if( singleResultArray == NULL ) return NULL;
             env->SetIntArrayRegion(singleResultArray, 0, 2, returnValues);
             env->SetObjectArrayElement(returnArray, i, singleResultArray);
         };
@@ -923,6 +938,7 @@ JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getLinesStatus
         returnValues[i] = 0;
     }
     jintArray returnArray = env->NewIntArray(4);
+    if( returnArray == NULL ) return NULL;
 
     /*Lines status*/
     int statusLines = getLinesStatus(portHandle);
