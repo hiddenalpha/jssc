@@ -638,16 +638,18 @@ JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getBuffersBytesCount
     if( returnArray == NULL ) return NULL;
 
     err = ioctl(portHandle, FIONREAD, &returnValues[0]);
-    if( err < 0 ){
+    if( err == -1 ){
         err = errno;
-        env->ThrowNew(env->FindClass("java.lang.RuntimeException"), strerror(err));
+        jclass exClz = env->FindClass("java/io/IOException");
+        if( exClz != NULL ) env->ThrowNew(exClz, strerror(err));
         return NULL;
     }
 
     err = ioctl(portHandle, TIOCOUTQ, &returnValues[1]);
-    if( err < 0 ){
+    if( err == -1 ){
         err = errno;
-        env->ThrowNew(env->FindClass("java.lang.RuntimeException"), strerror(err));
+        jclass exClz = env->FindClass("java/io/IOException");
+        if( exClz != NULL ) env->ThrowNew(exClz, strerror(err));
         return NULL;
     }
 
