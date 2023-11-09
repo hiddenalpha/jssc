@@ -646,8 +646,6 @@ JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getBuffersBytesCount
     jint returnValues[2];
     returnValues[0] = -1; //Input buffer
     returnValues[1] = -1; //Output buffer
-    jintArray returnArray = env->NewIntArray(2);
-    if( returnArray == NULL ) return NULL;
 
     err = ioctl(portHandle, FIONREAD, &returnValues[0]);
     if( err == -1 ){
@@ -665,6 +663,8 @@ JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getBuffersBytesCount
         return NULL;
     }
 
+    jintArray returnArray = env->NewIntArray(2);
+    if( returnArray == NULL ) return NULL;
     env->SetIntArrayRegion(returnArray, 0, 2, returnValues);
     return returnArray;
 }
