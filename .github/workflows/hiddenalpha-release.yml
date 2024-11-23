@@ -5,7 +5,8 @@ on:
     branches:
       - "wip-TryAddMyCustomReleaseBuild-20241123"
     #tags:
-    #  - '^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$'
+    # Try  - '^v[0-9]+\.[0-9]+\.[0-9]+'
+    # Try  - 'v[0-9]+\.[0-9]+\.[0-9]+(-.*)?'
 
 jobs:
   linux-x86_64:
@@ -20,8 +21,9 @@ jobs:
       - name: Build the project
         run: |
           mvn -Px86_64 clean verify
-          echo "Artifacts:" target/jssc-*-*.jar
-          echo "artifact_name=$(basename target/jssc-*-macos-aarch64*.jar)" >> $GITHUB_ENV
+          ls -Ahl target
+          echo "artifact_name=$(basename target/jssc-*-linux-x86_64-64.jar)"
+          echo "artifact_name=$(basename target/jssc-*-linux-x86_64-64.jar)" >> $GITHUB_ENV
       - name: Upload build artifact
         uses: actions/upload-artifact@v3
         with:
