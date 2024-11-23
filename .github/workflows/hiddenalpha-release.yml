@@ -1,0 +1,87 @@
+name: Build Artifacts patched by hiddenalpha
+
+on:
+  push:
+    tags:
+      - '^v[0-9]+\.[0-9]+\.[0-9]+\..*$'
+
+jobs:
+
+  build-linux-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y maven cmake make g++
+      - name: Build the project
+        run: |
+          mvn -Px86_64 clean verify
+          echo "Artifacts:" target/jssc-*-*.jar
+          echo "artifact_name=$(basename target/jssc-*-macos-aarch64*.jar)" >> $GITHUB_ENV
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.artifact_name }}
+          path: target/${{ env.artifact_name }}
+
+  build-linux-x86:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y maven cmake make g++
+      - name: Build the project
+        run: |
+          mvn -Px86 clean verify
+          echo "Artifacts:" target/jssc-*-*.jar
+          echo "artifact_name=$(basename target/jssc-*-macos-aarch64*.jar)" >> $GITHUB_ENV
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.artifact_name }}
+          path: target/${{ env.artifact_name }}
+
+  build-windows-x86_64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up build environment
+        run: |
+          choco install visualstudio2019community
+      - name: Build the project
+        run: |
+          mvn -Px86_64 clean verify
+          echo "Artifacts:" target/jssc-*-*.jar
+          echo "artifact_name=$(basename target/jssc-*-macos-aarch64*.jar)" >> $GITHUB_ENV
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.artifact_name }}
+          path: target/${{ env.artifact_name }}
+
+  build-macos-aarch64:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up build environment
+        run: |
+          brew install openjdk maven clang cmake
+      - name: Build the project
+        run: |
+          mvn -Px86_64 clean verify
+          echo "Artifacts:" target/jssc-*-*.jar
+          echo "artifact_name=$(basename target/jssc-*-macos-aarch64*.jar)" >> $GITHUB_ENV
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.artifact_name }}
+          path: target/${{ env.artifact_name }}
+
