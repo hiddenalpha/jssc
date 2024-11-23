@@ -7,6 +7,13 @@ on:
 
 jobs:
 
+  release:
+    needs: [
+      build-linux-x86_64,
+      build-linux-x86,
+      build-windows-x86_64,
+      build-macos-aarch64 ]
+
   build-linux-x86_64:
     runs-on: ubuntu-latest
     steps:
