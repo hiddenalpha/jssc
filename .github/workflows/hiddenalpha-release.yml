@@ -8,9 +8,9 @@ on:
 jobs:
 
 # local snk = io.stdout
-# local build = function(target, arch, host, setup)
+# local build = function(mvnProfile, target, host, setup)
 #     snk:write(""
-#       .. "  ".. target .."-".. arch ..":\n"
+#       .. "  ".. target .."-".. mvnProfile ..":\n"
 #       .. "    runs-on: ".. host .."-latest\n"
 #       .. "    steps:\n"
 #       .. "      - name: Checkout repository\n"
@@ -19,44 +19,40 @@ jobs:
 #       .. "        run: ".. setup .."\n"
 #       .. "      - name: Build the project\n"
 #       .. "        run: |\n"
-#       .. "          mvn -P ARCH clean verify\n"
+#       -- Effective artifacts seen:
+#       --  - "jssc-2.9.7-SNAPSHOT-linux-x86_64-64.jar"
+#       --  - "jssc-2.9.7-SNAPSHOT-linux-x86_64-64.jar"
+#       .. "          mvn -P ".. mvnProfile .." clean verify\n"
 #       .. "          ls -Ahl target\n"
-#       ..[[          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"]].."\n"
-#       ..[[          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV]].."\n"
 #       .. "      - name: Upload build artifact\n"
 #       .. "        uses: actions/upload-artifact@v4\n"
 #       .. "        with:\n"
-#       .. "          name: ${{ env.artifact_name }}\n"
-#       .. "          path: target/${{ env.artifact_name }}\n"
+#       .. "          name: ".. target .."-".. mvnProfile ..".jar\n"
+#       .. "          path: target/jssc-*".. target ..".jar\n"
 #       )
 # end
-# local buildLinux = function( arch )
-#     build("linux", arch, "ubuntu", "true"
+# local setupLinux = "true"
 #         .." && sudo apt-get update"
 #         .." && sudo apt-get install --no-install-recommends -y"
-#         ..     " maven cmake make g++" )
-# end
-# local buildWindoof = function( arch )
-#     build("windows", arch, "windows", "choco install visualstudio2019community")
-# end
-# local buildOsx = function( arch )
-#     build("macos", arch, "maocs", "brew install clang socat")
-# end
-# buildLinux("32")
-# buildLinux("64")
-# buildLinux("arm")
-# buildLinux("arm64")
-# buildLinux("ppc")
-# buildLinux("riscv32")
-# buildWindoof("32")
-# buildWindoof("64")
-# buildWindoof("arm64")
-# buildOsx("64")
-# buildOsx("arm64")
+#         ..     " maven cmake make g++"
+# local setupWindoof = "choco install visualstudio2019community"
+# local setupMacos = "brew install clang socat"
+# build("x86_64", "linux", "linux", setupLinux)
+# build("x86", "linux", "linux", setupLinux)
+# -- TODO build("aarch64", )
+# -- TODO buildWindoof("mingw64")
+# -- TODO buildWindoof("mingwaarch64")
+# -- TODO buildWindoof("mingw32")
+# -- TODO build("riscv64")
+# -- TODO build("riscv32")
+# -- TODO build("ppc64")
+# -- TODO build("armhf")
+# -- TODO build("armsf")
 
 
-  linux-32:
-    runs-on: ubuntu-latest
+
+  linux-x86_64:
+    runs-on: linux-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -64,17 +60,15 @@ jobs:
         run: true && sudo apt-get update && sudo apt-get install --no-install-recommends -y maven cmake make g++
       - name: Build the project
         run: |
-          mvn -P ARCH clean verify
+          mvn -P x86_64 clean verify
           ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  linux-64:
-    runs-on: ubuntu-latest
+          name: linux-x86_64.jar
+          path: target/jssc-*linux.jar
+  linux-x86:
+    runs-on: linux-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -82,174 +76,10 @@ jobs:
         run: true && sudo apt-get update && sudo apt-get install --no-install-recommends -y maven cmake make g++
       - name: Build the project
         run: |
-          mvn -P ARCH clean verify
+          mvn -P x86 clean verify
           ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  linux-arm:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Set up build environment
-        run: true && sudo apt-get update && sudo apt-get install --no-install-recommends -y maven cmake make g++
-      - name: Build the project
-        run: |
-          mvn -P ARCH clean verify
-          ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  linux-arm64:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Set up build environment
-        run: true && sudo apt-get update && sudo apt-get install --no-install-recommends -y maven cmake make g++
-      - name: Build the project
-        run: |
-          mvn -P ARCH clean verify
-          ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  linux-ppc:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Set up build environment
-        run: true && sudo apt-get update && sudo apt-get install --no-install-recommends -y maven cmake make g++
-      - name: Build the project
-        run: |
-          mvn -P ARCH clean verify
-          ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  linux-riscv32:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Set up build environment
-        run: true && sudo apt-get update && sudo apt-get install --no-install-recommends -y maven cmake make g++
-      - name: Build the project
-        run: |
-          mvn -P ARCH clean verify
-          ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  windows-32:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Set up build environment
-        run: choco install visualstudio2019community
-      - name: Build the project
-        run: |
-          mvn -P ARCH clean verify
-          ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  windows-64:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Set up build environment
-        run: choco install visualstudio2019community
-      - name: Build the project
-        run: |
-          mvn -P ARCH clean verify
-          ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  windows-arm64:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Set up build environment
-        run: choco install visualstudio2019community
-      - name: Build the project
-        run: |
-          mvn -P ARCH clean verify
-          ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  macos-64:
-    runs-on: maocs-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Set up build environment
-        run: brew install clang socat
-      - name: Build the project
-        run: |
-          mvn -P ARCH clean verify
-          ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
-  macos-arm64:
-    runs-on: maocs-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Set up build environment
-        run: brew install clang socat
-      - name: Build the project
-        run: |
-          mvn -P ARCH clean verify
-          ls -Ahl target
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)"
-          echo "artifact_name=$(basename target/jssc-*-TARGET-ARCH*.jar)" >> $GITHUB_ENV
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.artifact_name }}
-          path: target/${{ env.artifact_name }}
+          name: linux-x86.jar
+          path: target/jssc-*linux.jar
