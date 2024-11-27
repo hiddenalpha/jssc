@@ -29,7 +29,7 @@
     ;elif test "${TRIPLET:?}" = "x86_64-linux-gnu" ;then true \
       && MVN_ARCH="x86_64" \
       && CLASSIFIER_OLD="-linux-x86_64-64" \
-      && CLASSIFIER_NEW="-linux-x86_64" \
+      && CLASSIFIER_NEW="-${TRIPLET:?}" \
     ;else true \
       && printf '\nENOTSUP: %s\n\n' "${TRIPLET:?}" && false \
     ;fi  \
