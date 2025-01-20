@@ -169,6 +169,13 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_purgePort
  */
 JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_closePort
   (JNIEnv *, jobject, jlong portHandle){
+    if( portHandle == -1 ){
+        // Usually this case shouldn't be reached. Nevertheless it is for extra
+        // caution to prevent UB in case some code tries to call us with
+        // invalid FDs.
+        fprintf(stderr, "EINVAL: closePort(%lld)\n", portHandle);
+        return JNI_FALSE;
+    }
     HANDLE hComm = (HANDLE)portHandle;
     return (CloseHandle(hComm) ? JNI_TRUE : JNI_FALSE);
 }

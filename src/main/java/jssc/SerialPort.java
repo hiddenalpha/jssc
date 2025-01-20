@@ -1194,6 +1194,7 @@ public class SerialPort {
             removeEventListener();
         }
         boolean returnValue = serialInterface.closePort(portHandle);
+        portHandle = -1; // <- Mark invalid, so no one can accidentally use it later.
         if(returnValue){
             maskAssigned = false;
             portOpened = false;
