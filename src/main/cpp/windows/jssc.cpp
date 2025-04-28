@@ -299,11 +299,11 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     returnArray = env->NewByteArray(byteCount);
     if( returnArray == NULL ) goto Finally;
 
-    lpBuffer = (jbyte *)malloc(byteCount * sizeof(jbyte));
+    lpBuffer = (jbyte*)malloc(byteCount*sizeof*jbyte);
     if(lpBuffer == NULL){
         /* Whops. Not enough memory. Let caller know through exception. */
         char exMsg[32]; exMsg[0] = '\0';
-        snprintf(exMsg, sizeof exMsg, "malloc(%d)", byteCount);
+        snprintf(exMsg, sizeof exMsg, "malloc(%d)", byteCount*sizeof*jbyte);
         jclass exClz = env->FindClass("java/lang/OutOfMemoryError");
         if( exClz != NULL ) env->ThrowNew(exClz, exMsg);
         goto Finally;
