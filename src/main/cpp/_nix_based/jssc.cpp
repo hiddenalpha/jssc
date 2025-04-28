@@ -540,14 +540,14 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
   (JNIEnv *env, jobject, jlong portHandle, jbyteArray buffer){
     if( buffer == NULL ){
         jclass exClz = env->FindClass("java/lang/NullPointerException");
-        if( exClz != NULL ) env->ThrowNew(exClz, "buffer");
+        if( exClz ) env->ThrowNew(exClz, "buffer");
         return 0;
     }
     jboolean ret = JNI_FALSE;
     jbyte* jBuffer = env->GetByteArrayElements(buffer, JNI_FALSE);
     if( jBuffer == NULL ){
         jclass exClz = env->FindClass("java/lang/RuntimeException");
-        if( exClz != NULL ) env->ThrowNew(exClz, "jni->GetByteArrayElements() failed");
+        if( exClz ) env->ThrowNew(exClz, "jni->GetByteArrayElements() failed");
         return 0;
     }
     jint bufferSize = env->GetArrayLength(buffer);
@@ -555,7 +555,7 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_writeBytes
     if( result == -1 ){
         int err = errno; /*bakup errno*/
         jclass exClz = env->FindClass("java/io/IOException");
-        assert(exClz != NULL);
+        assert(exClz);
         env->ThrowNew(exClz, strerror(err));
         goto Finally;
     }
@@ -579,7 +579,7 @@ static int awaitReadReady(JNIEnv*env, jlong fd){
 
     if( fd >= FD_SETSIZE ){
         jclass exClz = env->FindClass("java/lang/UnsupportedOperationException");
-        if( exClz != NULL ) env->ThrowNew(exClz, "Bad luck. 'select' cannot handle large fds.");
+        if( exClz ) env->ThrowNew(exClz, "Bad luck. 'select' cannot handle large fds.");
         static_assert(EBADF > 0, "EBADF > 0");
         return -EBADF;
     }
@@ -594,12 +594,12 @@ static int awaitReadReady(JNIEnv*env, jlong fd){
             switch( err ){
                 case EBADF:
                     exClz = env->FindClass("java/lang/IllegalArgumentException");
-                    if( exClz != NULL ) env->ThrowNew(exClz, "EBADF select()");
+                    if( exClz ) env->ThrowNew(exClz, "EBADF select()");
                     static_assert(EBADF > 0, "EBADF > 0");
                     return -err;
                 case EINVAL:
                     exClz = env->FindClass("java/lang/IllegalArgumentException");
-                    if( exClz != NULL ) env->ThrowNew(exClz, "EINVAL select()");
+                    if( exClz ) env->ThrowNew(exClz, "EINVAL select()");
                     static_assert(EINVAL > 0, "EINVAL > 0");
                     return -err;
                 default:
@@ -633,7 +633,7 @@ static int awaitReadReady(JNIEnv*env, jlong fd){
             switch( err ){
                 case EINVAL:
                     exClz = env->FindClass("java/lang/IllegalArgumentException");
-                    if( exClz != NULL ) env->ThrowNew(exClz, "EINVAL poll()");
+                    if( exClz ) env->ThrowNew(exClz, "EINVAL poll()");
                     static_assert(EINVAL > 0, "EINVAL > 0");
                     return -err;
                 default:
@@ -673,7 +673,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
         char emsg[32]; emsg[0] = '\0';
         snprintf(emsg, sizeof emsg, "new byte[%d]", byteCount);
         jclass exClz = env->FindClass("java/lang/IllegalArgumentException");
-        if( exClz != NULL ) env->ThrowNew(exClz, emsg);
+        if( exClz ) env->ThrowNew(exClz, emsg);
         returnArray = NULL; goto Finally;
     }
 
@@ -682,7 +682,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
         char emsg[32]; emsg[0] = '\0';
         snprintf(emsg, sizeof emsg, "new byte[%d]", byteCount*sizeof*lpBuffer);
         jclass exClz = env->FindClass("java/lang/OutOfMemoryError");
-        if( exClz != NULL ) env->ThrowNew(exClz, emsg);
+        if( exClz ) env->ThrowNew(exClz, emsg);
         returnArray = NULL; goto Finally;
     }
 
@@ -713,7 +713,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
                 default: exName = "java/io/IOException"; emsg = strerror(err); break;
             }
             jclass exClz = env->FindClass(exName);
-            if( exClz != NULL ) env->ThrowNew(exClz, emsg);
+            if( exClz ) env->ThrowNew(exClz, emsg);
             returnArray = NULL; goto Finally;
         }
         else if (result == 0) {
@@ -732,7 +732,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     assert(env->ExceptionCheck() == JNI_FALSE);
 
 Finally:
-    if( lpBuffer != NULL ) free(lpBuffer);
+    if( lpBuffer ) free(lpBuffer);
     return returnArray;
 }
 
@@ -752,7 +752,7 @@ JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getBuffersBytesCount
     if( err ){
         err = errno;
         jclass exClz = env->FindClass("java/io/IOException");
-        if( exClz != NULL ) env->ThrowNew(exClz, strerror(err));
+        if( exClz ) env->ThrowNew(exClz, strerror(err));
         return NULL;
     }
 
@@ -932,7 +932,7 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
     if( err ){
         err = errno;
         jclass exClz = env->FindClass("java/io/IOException");
-        if( exClz != NULL ) env->ThrowNew(exClz, strerror(err));
+        if( exClz ) env->ThrowNew(exClz, strerror(err));
         return NULL;
     }
 
