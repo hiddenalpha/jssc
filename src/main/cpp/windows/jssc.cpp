@@ -33,8 +33,8 @@
 #   define PRIsz "Iu"
 #   define PRIssz "Id"
 #elif defined(__MINGW32__) && !defined(__MINGW64__)
-#   define PRIsz "lu"
-#   define PRIssz "ld"
+#   define PRIsz "u"
+#   define PRIssz "d"
 #else
 #   define PRIsz "zu"
 #   define PRIssz "zd"
