@@ -29,7 +29,16 @@
 #include <jssc_SerialNativeInterface.h>
 #include "version.h"
 
-//#include <iostream>
+#if defined(_MSC_VER) && _MSC_VER < 1800
+#   define PRIsz "Iu"
+#   define PRIssz "Id"
+#elif defined(__MINGW32__) && !defined(__MINGW64__)
+#   define PRIsz "lu"
+#   define PRIssz "ld"
+#else
+#   define PRIsz "zu"
+#   define PRIssz "zd"
+#endif
 
 #define MAX_PORT_NAME_STR_LEN 32
 
@@ -283,8 +292,8 @@ JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
     delete overlapped;
     if( err ){
         char emsg[128];
-        snprintf(emsg, sizeof emsg, "Error %d: https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes", err);
-        jobject *exClz = env->FindClass("jssc/SerialPortException");
+        snprintf(emsg, sizeof emsg, "Error %lu: https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes", err);
+        jclass exClz = env->FindClass("jssc/SerialPortException");
         if( exClz ) env->ThrowNew(exClz, emsg);
     }
     return returnValue;
@@ -321,7 +330,7 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     lpBuffer = (jbyte*)malloc(byteCount*sizeof*lpBuffer);
     if( !lpBuffer ){
         char emsg[32]; emsg[0] = '\0';
-        snprintf(emsg, sizeof emsg, "malloc(%d) failed", byteCount*sizeof*lpBuffer);
+        snprintf(emsg, sizeof emsg, "malloc(%"PRIsz") failed", byteCount*sizeof*lpBuffer);
         jclass exClz = env->FindClass("java/lang/RuntimeException");
         if( exClz ) env->ThrowNew(exClz, emsg);
         returnArray = NULL; goto Finally;
