@@ -252,29 +252,40 @@ JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
     OVERLAPPED *overlapped = new OVERLAPPED();
     overlapped->hEvent = CreateEventA(NULL, true, false, NULL);
     DWORD err = 0;
-    if(WriteFile(hComm, jBuffer, (DWORD)env->GetArrayLength(buffer), &lpNumberOfBytesWritten, overlapped)){
-        returnValue = lpNumberOfBytesWritten;
-    }else{
-        err = GetLastError();
-        if( err == ERROR_IO_PENDING ){
-            if(WaitForSingleObject(overlapped->hEvent, INFINITE) == WAIT_OBJECT_0){
-                if(GetOverlappedResult(hComm, overlapped, &lpNumberOfBytesTransferred, false)){
-                    returnValue = lpNumberOfBytesTransferred;
-                }
-            }else{
-                err = GetLastError();
-            }
+    do{
+        err = !WriteFile(hComm, jBuffer, (DWORD)env->GetArrayLength(buffer), &lpNumberOfBytesWritten, overlapped);
+        if( !err ){ /* successfully written. we're already done. */
+            returnValue = lpNumberOfBytesWritten;
+            break;
         }
-    }
+        err = GetLastError();
+        if( err != ERROR_IO_PENDING ){
+            break; /* some unknown error occurred. Go reporting it. */
+        }
+        /* our write above was async (IO_PENDING). So it was only fired off, but
+         * we do not know the result yet. Therefore we've to wait for the result. */
+        if( WaitForSingleObject(overlapped->hEvent, INFINITE) != WAIT_OBJECT_0 ){
+            /* too bad :( wait failed. */
+            err = GetLastError();
+            break;
+        }
+        /* waited successfully. Time to get the result. */
+        if( GetOverlappedResult(hComm, overlapped, &lpNumberOfBytesTransferred, false) ){
+            /* we know the result now */
+            returnValue = lpNumberOfBytesTransferred;
+            err = 0;
+        }else{ /* GetOverlappedResult has failed :( */
+            err = GetLastError();
+        }
+    }while(0);
     env->ReleaseByteArrayElements(buffer, jBuffer, 0);
     CloseHandle(overlapped->hEvent);
     delete overlapped;
-    if( returnValue < 0 ){
+    if( err ){
         char emsg[128];
-        snprintf(emsg, sizeof emsg, "Error %d. Details: https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes", err);
+        snprintf(emsg, sizeof emsg, "Error %d: https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes", err);
         jobject *exClz = env->FindClass("jssc/SerialPortException");
         if( exClz ) env->ThrowNew(exClz, emsg);
-        return 0;
     }
     return returnValue;
 }

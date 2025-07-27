@@ -411,15 +411,10 @@ public class SerialPort {
      */
     @Deprecated
     public boolean writeBytes1(byte[] buffer) throws SerialPortException {
-        checkPortOpened("writeBytes()");
         /* Delegate to new method and translate result to what original method
          * did return. */
-        try{
-            int numWrittenBytes = writeBytes(buffer);
-            return numWrittenBytes == buffer.length;
-        } catch(IOException ex) {
-            throw SerialPortException.wrapNativeException(ex, this, "writeBytes1");
-        }
+        int numWrittenBytes = writeBytes(buffer);
+        return numWrittenBytes == buffer.length;
     }
 
     /**
