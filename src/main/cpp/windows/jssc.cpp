@@ -245,13 +245,8 @@ JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
     }
     jbyte* jBuffer = env->GetByteArrayElements(buffer, NULL);
     if( !jBuffer ){
-        if( !env->ExceptionCheck() ){
-            /* IMHO this code should be unreachable, as GetByteArrayElements should already
-             * have set an exception by itself. But will keep it as old code had it and
-             * (who knows) maybe I miss something. So keep it to stay on the safe side. */
-            jclass exClz = env->FindClass("java/lang/RuntimeException");
-            if( exClz ) env->ThrowNew(exClz, "jni->GetByteArrayElements() failed");
-        }
+        jclass exClz = env->ExceptionCheck() ? NULL : env->FindClass("java/lang/RuntimeException");
+        if( exClz ) env->ThrowNew(exClz, "jni->GetByteArrayElements() failed");
         return 0;
     }
     OVERLAPPED *overlapped = new OVERLAPPED();
@@ -270,7 +265,9 @@ JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
     CloseHandle(overlapped->hEvent);
     delete overlapped;
     if( returnValue < 0 ){
-        return env->ThrowNew(env->FindClass("jssc/SerialPortException"), "WriteFile() failed");
+        jobject *exClz = env->FindClass("jssc/SerialPortException");
+        if( exClz ) env->ThrowNew(exClz, "WriteFile() failed");
+        return 0;
     }
     return returnValue;
 }
