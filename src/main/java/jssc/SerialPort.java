@@ -428,10 +428,10 @@ public class SerialPort {
      */
     public int writeBytes(byte[] buffer) throws SerialPortException {
         checkPortOpened("writeBytes()");
-        try{
+        try {
             return serialInterface.writeBytes(portHandle, buffer);
-        }catch( IOException ex ){
-            throw wrapNativeException(ex, this, "writeBytes");
+        } catch(IOException ex) {
+            throw SerialPortException.wrapNativeException(ex, this, "writeBytes");
         }
     }
 
