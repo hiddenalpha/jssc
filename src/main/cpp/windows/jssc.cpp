@@ -243,7 +243,7 @@ JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
         if( exClz ) env->ThrowNew(exClz, "buffer");
         return 0;
     }
-    jbyte* jBuffer = env->GetByteArrayElements(buffer, NULL);
+    jbyte *jBuffer = env->GetByteArrayElements(buffer, NULL);
     if( !jBuffer ){
         jclass exClz = env->ExceptionCheck() ? NULL : env->FindClass("java/lang/RuntimeException");
         if( exClz ) env->ThrowNew(exClz, "jni->GetByteArrayElements() failed");
@@ -251,13 +251,18 @@ JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
     }
     OVERLAPPED *overlapped = new OVERLAPPED();
     overlapped->hEvent = CreateEventA(NULL, true, false, NULL);
+    DWORD err = 0;
     if(WriteFile(hComm, jBuffer, (DWORD)env->GetArrayLength(buffer), &lpNumberOfBytesWritten, overlapped)){
         returnValue = lpNumberOfBytesWritten;
-    }
-    else if(GetLastError() == ERROR_IO_PENDING){
-        if(WaitForSingleObject(overlapped->hEvent, INFINITE) == WAIT_OBJECT_0){
-            if(GetOverlappedResult(hComm, overlapped, &lpNumberOfBytesTransferred, false)){
-                returnValue = lpNumberOfBytesTransferred;
+    }else{
+        err = GetLastError();
+        if( err == ERROR_IO_PENDING ){
+            if(WaitForSingleObject(overlapped->hEvent, INFINITE) == WAIT_OBJECT_0){
+                if(GetOverlappedResult(hComm, overlapped, &lpNumberOfBytesTransferred, false)){
+                    returnValue = lpNumberOfBytesTransferred;
+                }
+            }else{
+                err = GetLastError();
             }
         }
     }
@@ -265,8 +270,10 @@ JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
     CloseHandle(overlapped->hEvent);
     delete overlapped;
     if( returnValue < 0 ){
+        char emsg[128];
+        snprintf(emsg, sizeof emsg, "Error %d. Details: https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes", err);
         jobject *exClz = env->FindClass("jssc/SerialPortException");
-        if( exClz ) env->ThrowNew(exClz, "WriteFile() failed");
+        if( exClz ) env->ThrowNew(exClz, emsg);
         return 0;
     }
     return returnValue;

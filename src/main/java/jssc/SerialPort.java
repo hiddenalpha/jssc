@@ -415,8 +415,8 @@ public class SerialPort {
         /* Delegate to new method and translate result to what original method
          * did return. */
         try{
-            int result = writeBytes(buffer);
-            return result == buffer.length;
+            int numWrittenBytes = writeBytes(buffer);
+            return numWrittenBytes == buffer.length;
         } catch(IOException ex) {
             throw SerialPortException.wrapNativeException(ex, this, "writeBytes1");
         }
@@ -428,7 +428,7 @@ public class SerialPort {
      * @param buffer <code>byte[]</code> array to write.
      *
      * @return number of bytes written.
-     * 
+     *
      * @throws SerialPortException
      */
     public int writeBytes(byte[] buffer) throws SerialPortException {

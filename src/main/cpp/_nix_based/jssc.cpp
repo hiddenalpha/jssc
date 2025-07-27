@@ -25,12 +25,10 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdio.h>
-#include <string.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <time.h>
@@ -41,7 +39,6 @@
 #endif
 #ifdef __sun
     #include <sys/filio.h>//Needed for FIONREAD in Solaris
-    #include <string.h>//Needed for select() function
 #endif
 #ifdef __APPLE__
     #include <serial/ioss.h>//Needed for IOSSIOSPEED in Mac OS X (Non standard baudrate)
