@@ -292,7 +292,7 @@ JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
     delete overlapped;
     if( err ){
         char emsg[128];
-        snprintf(emsg, sizeof emsg, "Error %lu: https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes", err);
+        snprintf(emsg, sizeof emsg, "Error %lu: https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes", (long unsigned)err);
         jclass exClz = env->FindClass("jssc/SerialPortException");
         if( exClz ) env->ThrowNew(exClz, emsg);
     }
