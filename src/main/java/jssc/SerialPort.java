@@ -24,8 +24,11 @@
  */
 package jssc;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
+
+import static jssc.SerialPortException.wrapNativeException;
 
 /**
  *
@@ -40,7 +43,6 @@ public class SerialPort {
     private final String portName;
     private volatile boolean portOpened = false;
     private boolean maskAssigned = false;
-    private boolean eventListenerAdded = false;
 
     //since 2.2.0 ->
     private volatile Method methodErrorOccurred = null;
@@ -166,8 +168,12 @@ public class SerialPort {
      * Construct a serial port object with the specified <code>portName</code>
      *
      * @param portName Name of the port, e.g. <code>COM1</code>, <code>/dev/tty.FOO</code>, etc.
+     * @throws NullPointerException if <code>portName</code> is null.
      */
     public SerialPort(String portName) {
+        if (portName == null) {
+            throw new NullPointerException();
+        }
         this.portName = portName;
         serialInterface = new SerialNativeInterface();
     }
@@ -204,14 +210,9 @@ public class SerialPort {
         if(portOpened){
             throw new SerialPortException(this, "openPort()", SerialPortException.TYPE_PORT_ALREADY_OPENED);
         }
-        if(portName != null){
-            boolean useTIOCEXCL = (System.getProperty(SerialNativeInterface.PROPERTY_JSSC_NO_TIOCEXCL) == null &&
-                                   System.getProperty(SerialNativeInterface.PROPERTY_JSSC_NO_TIOCEXCL.toLowerCase()) == null);
-            portHandle = serialInterface.openPort(portName, useTIOCEXCL);//since 2.3.0 -> (if JSSC_NO_TIOCEXCL defined, exclusive lock for serial port will be disabled)
-        }
-        else {
-            throw new SerialPortException(this, "openPort()", SerialPortException.TYPE_NULL_NOT_PERMITTED);//since 2.1.0 -> NULL port name fix
-        }
+        boolean useTIOCEXCL = (System.getProperty(SerialNativeInterface.PROPERTY_JSSC_NO_TIOCEXCL) == null &&
+                               System.getProperty(SerialNativeInterface.PROPERTY_JSSC_NO_TIOCEXCL.toLowerCase()) == null);
+        portHandle = serialInterface.openPort(portName, useTIOCEXCL);//since 2.3.0 -> (if JSSC_NO_TIOCEXCL defined, exclusive lock for serial port will be disabled)
         if(portHandle == SerialNativeInterface.ERR_PORT_BUSY){
             throw new SerialPortException(this, "openPort()", SerialPortException.TYPE_PORT_BUSY);
         }
@@ -405,31 +406,38 @@ public class SerialPort {
      * @return If the operation is successfully completed, the method returns true, otherwise false
      * 
      * @throws SerialPortException if exception occurred
+     *
+     * @deprecated use {@link #writeBytes(byte[])}.
      */
-    public boolean writeBytes(byte[] buffer) throws SerialPortException {
+    @Deprecated
+    public boolean writeBytes1(byte[] buffer) throws SerialPortException {
         checkPortOpened("writeBytes()");
-        // Delegate to new method and translate result to what original method
-        // did return.
+        /* Delegate to new method and translate result to what original method
+         * did return. */
         try{
-            int result = write(buffer);
+            int result = writeBytes(buffer);
             return result == buffer.length;
-        }catch (SerialPortException ex) {
-            return false;
+        } catch(IOException ex) {
+            throw SerialPortException.wrapNativeException(ex, this, "writeBytes1");
         }
     }
 
     /**
-     * Write byte array to port
+     * Write byte array to port.
      *
-     * @param buffer <code>byte[]</code> array to write
+     * @param buffer <code>byte[]</code> array to write.
      *
-     * @return If the operation is successfully completed, the method returns true, otherwise false
+     * @return number of bytes written.
      * 
-     * @throws SerialPortException if exception occurred
+     * @throws SerialPortException
      */
-    public int write(byte[] buffer) throws SerialPortException {
+    public int writeBytes(byte[] buffer) throws SerialPortException {
         checkPortOpened("writeBytes()");
-        return serialInterface.write(portHandle, buffer);
+        try{
+            return serialInterface.writeBytes(portHandle, buffer);
+        }catch( IOException ex ){
+            throw wrapNativeException(ex, this, "writeBytes");
+        }
     }
 
     /**
@@ -445,7 +453,7 @@ public class SerialPort {
      */
     public boolean writeByte(byte singleByte) throws SerialPortException {
         checkPortOpened("writeByte()");
-        return writeBytes(new byte[]{singleByte});
+        return writeBytes(new byte[]{singleByte}) == 1;
     }
 
     /**
@@ -461,7 +469,8 @@ public class SerialPort {
      */
     public boolean writeString(String string) throws SerialPortException {
         checkPortOpened("writeString()");
-        return writeBytes(string.getBytes());
+        byte[] bytes = string.getBytes();
+        return writeBytes(bytes) == bytes.length;
     }
 
     /**
@@ -478,7 +487,8 @@ public class SerialPort {
      */
     public boolean writeString(String string, String charsetName) throws SerialPortException, UnsupportedEncodingException {
         checkPortOpened("writeString()");
-        return writeBytes(string.getBytes(charsetName));
+        byte[] bytes = string.getBytes(charsetName);
+        return writeBytes(bytes) == bytes.length;
     }
 
     /**
@@ -494,7 +504,7 @@ public class SerialPort {
      */
     public boolean writeInt(int singleInt) throws SerialPortException {
         checkPortOpened("writeInt()");
-        return writeBytes(new byte[]{(byte)singleInt});
+        return writeBytes(new byte[]{(byte)singleInt}) == 1;
     }
 
     /**
@@ -514,7 +524,7 @@ public class SerialPort {
         for(int i = 0; i < buffer.length; i++){
             byteArray[i] = (byte)buffer[i];
         }
-        return writeBytes(byteArray);
+        return writeBytes(byteArray) == byteArray.length;
     }
 
     /**
@@ -528,7 +538,11 @@ public class SerialPort {
      */
     public byte[] readBytes(int byteCount) throws SerialPortException {
         checkPortOpened("readBytes()");
-        return serialInterface.readBytes(portHandle, byteCount);
+        try{
+            return serialInterface.readBytes(portHandle, byteCount);
+        }catch( IOException ex ){
+            throw SerialPortException.wrapNativeException(ex, this, "readBytes");
+        }
     }
 
     /**
@@ -892,7 +906,11 @@ public class SerialPort {
      */
     public int getInputBufferBytesCount() throws SerialPortException {
         checkPortOpened("getInputBufferBytesCount()");
-        return serialInterface.getBuffersBytesCount(portHandle)[0];
+        try{
+            return serialInterface.getBuffersBytesCount(portHandle)[0];
+        }catch( IOException ex ){
+            throw SerialPortException.wrapNativeException(ex, this, "getInputBufferBytesCount");
+        }
     }
 
     /**
@@ -906,7 +924,11 @@ public class SerialPort {
      */
     public int getOutputBufferBytesCount() throws SerialPortException {
         checkPortOpened("getOutputBufferBytesCount()");
-        return serialInterface.getBuffersBytesCount(portHandle)[1];
+        try{
+            return serialInterface.getBuffersBytesCount(portHandle)[1];
+        }catch( IOException ex ){
+            throw SerialPortException.wrapNativeException(ex, this, "getOutputBufferBytesCount");
+        }
     }
 
     /**
@@ -1108,7 +1130,7 @@ public class SerialPort {
      */
     private synchronized void addEventListener(SerialPortEventListener listener, int mask, boolean overwriteMask) throws SerialPortException {
         checkPortOpened("addEventListener()");
-        if(!eventListenerAdded){
+        if(eventThread == null || !eventThread.isAlive()){
             if((maskAssigned && overwriteMask) || !maskAssigned) {
                 setEventsMask(mask);
             }
@@ -1129,7 +1151,6 @@ public class SerialPort {
             }
             //<- since 2.2.0
             eventThread.start();
-            eventListenerAdded = true;
         }
         else {
             throw new SerialPortException(this, "addEventListener()", SerialPortException.TYPE_LISTENER_ALREADY_ADDED);
@@ -1159,24 +1180,26 @@ public class SerialPort {
      * @throws SerialPortException if exception occurred
      */
     public synchronized boolean removeEventListener() throws SerialPortException {
-        checkPortOpened("removeEventListener()");
-        if(!eventListenerAdded){
-            throw new SerialPortException(this, "removeEventListener()", SerialPortException.TYPE_CANT_REMOVE_LISTENER);
+        if(eventThread == null || !eventThread.isAlive()){
+            return false;
         }
         eventThread.terminateThread();
-        setEventsMask(0);
+        if (portOpened) {
+            setEventsMask(0);
+        }
+        //Guard against currentThread().join deadlock
         if(Thread.currentThread().getId() != eventThread.getId()){
-            if(eventThread.isAlive()){
-                try {
-                    eventThread.join(5000);
+            try {
+                eventThread.join(5000);
+                if (eventThread.isAlive()) {
+                    throw new SerialPortException(this, "removeEventListener()", SerialPortException.TYPE_CANT_REMOVE_LISTENER);
                 }
-                catch (InterruptedException ex) {
-                    throw new SerialPortException(this, "removeEventListener()", SerialPortException.TYPE_LISTENER_THREAD_INTERRUPTED);
-                }
+            }
+            catch (InterruptedException ex) {
+                throw new SerialPortException(this, "removeEventListener()", SerialPortException.TYPE_LISTENER_THREAD_INTERRUPTED);
             }
         }
         methodErrorOccurred = null;
-        eventListenerAdded = false;
         return true;
     }
 
@@ -1188,14 +1211,21 @@ public class SerialPort {
      * @throws SerialPortException if exception occurred
      */
     public synchronized boolean closePort() throws SerialPortException {
-        checkPortOpened("closePort()");
-        if(eventListenerAdded){
+        boolean returnValue;
+        //removeEventListener calls setEventsMask, and must occur before calling closePort
+        try {
             removeEventListener();
         }
-        boolean returnValue = serialInterface.closePort(portHandle);
-        if(returnValue){
-            maskAssigned = false;
-            portOpened = false;
+        finally {
+            if (portOpened) {
+                returnValue = serialInterface.closePort(portHandle);
+                if (returnValue) {
+                    maskAssigned = false;
+                    portOpened = false;
+                }
+            } else {
+                returnValue = false;
+            }
         }
         return returnValue;
     }

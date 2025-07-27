@@ -34,7 +34,7 @@ import java.io.IOException;
  */
 public class SerialNativeInterface {
 
-    private static final String libVersion = "2.9.4";
+    private static final String libVersion = "2.10.2";
 
     /** Linux **/
     public static final int OS_LINUX = 0;
@@ -267,7 +267,7 @@ public class SerialNativeInterface {
      * 
      * @return Method returns the array of read bytes
      */
-    public native byte[] readBytes(long handle, int byteCount);
+    public native byte[] readBytes(long handle, int byteCount) throws IOException;
 
     /**
      * Write data to port
@@ -277,7 +277,7 @@ public class SerialNativeInterface {
      * 
      * @return If the operation is successfully completed, the method returns true, otherwise false
      */
-    public native int write(long handle, byte[] buffer) throws SerialPortException;
+    public native int writeBytes(long handle, byte[] buffer) throws IOException;
 
     /**
      * Get bytes count in buffers of port
@@ -290,7 +290,7 @@ public class SerialNativeInterface {
      *
      * @since 0.8
      */
-    public native int[] getBuffersBytesCount(long handle);
+    public native int[] getBuffersBytesCount(long handle) throws IOException;
 
     /**
      * Set flow control mode

@@ -52,7 +52,24 @@ if(APPLE)
 		find_path(IOKit_INCLUDE_DIR NAMES IOKitLib.h HINTS ${IOKit_INC_SEARCH_PATH} ${IOKit_PKGC_INCLUDE_DIRS} PATH_SUFFIXES IOKit)
 		list(APPEND JSSC_ADDITIONAL_INCLUDES ${IOKit_INCLUDE_DIR})
 	endif()
+
+	# Handle edge-case with legacy versioned SDK headers (e.g. usr/include/c++/4.2.1)
+	if(CMAKE_OSX_SYSROOT)
+	    file(GLOB std_versions "${CMAKE_OSX_SYSROOT}/usr/include/c++/*")
+	    foreach(std_version IN LISTS std_versions)
+	        if("${std_version}" MATCHES "/v[0-9]*$")
+	             # Ignore c++/v1 (should already be included)
+	            continue()
+	        elseif(IS_DIRECTORY "${std_version}")
+	            message(STATUS "Adding legacy include path: ${std_version}")
+	            list(APPEND JSSC_ADDITIONAL_INCLUDES "${std_version}")
+	        endif()
+        endforeach()
+	endif()
 endif()
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Statically link gcc/c++
 if(MSVC)
@@ -102,6 +119,10 @@ if(NOT NATIVE_LIB_DIR OR "${NATIVE_LIB_DIR}" STREQUAL "")
 		set(OS_SUFFIX "arm64")
 	elseif("${OS_ARCH}" MATCHES "arm")
 		set(OS_SUFFIX "arm")
+	elseif("${OS_ARCH}" MATCHES "riscv32")
+		set(OS_SUFFIX "riscv32")
+	elseif("${OS_ARCH}" MATCHES "riscv64")
+		set(OS_SUFFIX "riscv64")
 	elseif(FORCE_M32)
 		set(OS_SUFFIX 32)
 	elseif(FORCE_M64)
@@ -187,9 +208,9 @@ if(CMAKE_STRIP AND NOT CMAKE_BUILD_TYPE MATCHES "Deb")
 	add_custom_command(TARGET jssc POST_BUILD COMMAND "${CMAKE_STRIP}" ${STRIP_ARGS} $<TARGET_FILE:jssc>)
 endif()
 
-# Copy native library back to source tree
+# Copy native library to target/classes for processing by junit, maven
 add_custom_command(TARGET jssc POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/natives/ ${CMAKE_CURRENT_SOURCE_DIR}/src/main/resources-precompiled/natives/
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/natives/ ${CMAKE_CURRENT_BINARY_DIR}/../classes/natives/
 )
 
 # Handle compiler warnings

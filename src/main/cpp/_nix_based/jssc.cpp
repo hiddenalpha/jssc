@@ -22,11 +22,15 @@
  * e-mail: scream3r.org@gmail.com
  * web-site: http://scream3r.org | http://code.google.com/p/java-simple-serial-connector/
  */
+#include <assert.h>
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <time.h>
@@ -526,36 +530,82 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setDTR
 /*
  * Writing data to the port
  */
-JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_write
+JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
   (JNIEnv *env, jobject, jlong portHandle, jbyteArray buffer){
+    if( buffer == NULL ){
+        jclass exClz = env->FindClass("java/lang/NullPointerException");
+        if( exClz != NULL ) env->ThrowNew(exClz, "buffer");
+        return 0;
+    }
+    jboolean ret = JNI_FALSE;
     jbyte* jBuffer = env->GetByteArrayElements(buffer, JNI_FALSE);
+    if( jBuffer == NULL ){
+        jclass exClz = env->FindClass("java/lang/RuntimeException");
+        if( exClz != NULL ) env->ThrowNew(exClz, "jni->GetByteArrayElements() failed");
+        return 0;
+    }
     jint bufferSize = env->GetArrayLength(buffer);
     jint result = write(portHandle, jBuffer, (size_t)bufferSize);
-    env->ReleaseByteArrayElements(buffer, jBuffer, 0);
-    if( result < 0 ){ /* aka error */
-        return env->ThrowNew(env->FindClass("jssc/SerialPortException"), strerror(errno));
+    if( result == -1 ){
+        int err = errno; /*bakup errno*/
+        jclass exClz = env->FindClass("java/io/IOException");
+        assert(exClz != NULL);
+        env->ThrowNew(exClz, strerror(err));
+        goto Finally;
     }
-    return result;
+    ret = (result == bufferSize) ? JNI_TRUE : JNI_FALSE;
+Finally:
+    env->ReleaseByteArrayElements(buffer, jBuffer, 0);
+    return ret;
 }
 
 /**
  * Waits until 'read()' has something to tell for the specified filedescriptor.
+ *
+ * Returns zero on success. Returns negative values on error and may
+ * sets up a java exception in 'env'.
  */
-static void awaitReadReady(JNIEnv*, jlong fd){
+static int awaitReadReady(JNIEnv*env, jlong fd){
+    int err;
+    int numUnknownErrors = 0;
 #if HAVE_POLL == 0
     // Alternative impl using 'select' as 'poll' isn't available (or broken).
 
-    //assert(fd < FD_SETSIZE); // <- Might help when hunting SEGFAULTs.
+    if( fd >= FD_SETSIZE ){
+        jclass exClz = env->FindClass("java/lang/UnsupportedOperationException");
+        if( exClz != NULL ) env->ThrowNew(exClz, "Bad luck. 'select' cannot handle large fds.");
+        static_assert(EBADF > 0, "EBADF > 0");
+        return -EBADF;
+    }
     fd_set readFds;
     while(true) {
         FD_ZERO(&readFds);
         FD_SET(fd, &readFds);
         int result = select(fd + 1, &readFds, NULL, NULL, NULL);
-        if(result < 0){
-            // man select: On error, -1 is returned, and errno is set to indicate the error
-            // TODO: Maybe a candidate to raise a java exception. But won't do
-            //       yet for backward compatibility.
-            continue;
+        if( result < 0 ){
+            err = errno;
+            jclass exClz = NULL;
+            switch( err ){
+                case EBADF:
+                    exClz = env->FindClass("java/lang/IllegalArgumentException");
+                    if( exClz != NULL ) env->ThrowNew(exClz, "EBADF select()");
+                    static_assert(EBADF > 0, "EBADF > 0");
+                    return -err;
+                case EINVAL:
+                    exClz = env->FindClass("java/lang/IllegalArgumentException");
+                    if( exClz != NULL ) env->ThrowNew(exClz, "EINVAL select()");
+                    static_assert(EINVAL > 0, "EINVAL > 0");
+                    return -err;
+                default:
+                    // TODO: Maybe other errors are candidates to raise java exceptions too. We can
+                    //       add them as soon we know which of them occur, and what they actually
+                    //       mean in our context. For now, we infinitely loop, as the original code
+                    //       did.
+                    if( numUnknownErrors == 0) fprintf(stderr, "select(): %s\n", strerror(err));
+                    static_assert(INT_MAX >= 0x7FFF, "INT_MAX >= 0x7FFF");
+                    numUnknownErrors = (numUnknownErrors + 1) & 0x3FFF;
+                    continue;
+            }
         }
         // Did wait successfully.
         break;
@@ -571,17 +621,32 @@ static void awaitReadReady(JNIEnv*, jlong fd){
     fds[0].events = POLLIN;
     while(true){
         int result = poll(fds, 1, -1);
-        if(result < 0){
-            // man poll: On error, -1 is returned, and errno is set to indicate the error.
-            // TODO: Maybe a candidate to raise a java exception. But won't do
-            //       yet for backward compatibility.
-            continue;
+        if( result < 0 ){
+            err = errno;
+            jclass exClz = NULL;
+            switch( err ){
+                case EINVAL:
+                    exClz = env->FindClass("java/lang/IllegalArgumentException");
+                    if( exClz != NULL ) env->ThrowNew(exClz, "EINVAL poll()");
+                    static_assert(EINVAL > 0, "EINVAL > 0");
+                    return -err;
+                default:
+                    // TODO: Maybe other errors are candidates to raise java exceptions too. We can
+                    //       add them as soon we know which of them occur, and what they actually
+                    //       mean in our context. For now, we infinitely loop, as the original code
+                    //       did.
+                    if( numUnknownErrors == 0) fprintf(stderr, "poll(): %s\n", strerror(err));
+                    static_assert(INT_MAX >= 0x7FFF, "INT_MAX >= 0x7FFF");
+                    numUnknownErrors = (numUnknownErrors + 1) & 0x3FFF;
+                    continue;
+            }
         }
         // Did wait successfully.
         break;
     }
 
 #endif
+    return 0;
 }
 
 /* OK */
@@ -593,23 +658,60 @@ static void awaitReadReady(JNIEnv*, jlong fd){
 JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
   (JNIEnv *env, jobject, jlong portHandle, jint byteCount){
 
-    // TODO: Errors should be communicated by raising java exceptions; Will break
-    //       backwards compatibility.
-
-    jbyte *lpBuffer = new jbyte[byteCount];
+    int err;
+    jbyte *lpBuffer = NULL;
     jbyteArray returnArray = NULL;
     int byteRemains = byteCount;
+
+    if( byteCount < 0 ){
+        char emsg[64]; emsg[0] = '\0';
+        snprintf(emsg, sizeof emsg, "byteCount %d. Expected range: 0..2147483647", byteCount);
+        jclass exClz = env->FindClass("java/lang/IllegalArgumentException");
+        if( exClz ) env->ThrowNew(exClz, emsg);
+        returnArray = NULL; goto Finally;
+    }else if( byteCount == 0 ){
+        returnArray = env->NewByteArray(0);
+        goto Finally;
+    }
+
+    lpBuffer = (jbyte*)malloc(byteCount*sizeof*lpBuffer);
+    if( !lpBuffer ){
+        char emsg[32]; emsg[0] = '\0';
+        snprintf(emsg, sizeof emsg, "malloc(%d) failed", byteCount*sizeof*lpBuffer);
+        jclass exClz = env->FindClass("java/lang/RuntimeException");
+        if( exClz ) env->ThrowNew(exClz, emsg);
+        returnArray = NULL; goto Finally;
+    }
 
     while(byteRemains > 0) {
         int result = 0;
 
-        awaitReadReady(env, portHandle);
+        err = awaitReadReady(env, portHandle);
+        if( err < 0 ){
+            /* nothing we could read. */
+            if( byteRemains != byteCount ){
+                /* return what we already have so far. */
+                env->ExceptionClear();
+                break;
+            }else{
+                /* nothing we could return. pass-through exception */
+                assert(env->ExceptionCheck());
+                returnArray = NULL; goto Finally;
+            }
+        }
 
         errno = 0;
         result = read(portHandle, lpBuffer + (byteCount - byteRemains), byteRemains);
         if (result < 0) {
-            // man read: On error, -1 is returned, and errno is set to indicate the error.
-            // TODO: May candidate for raising a java exception. See comment at begin of function.
+            err = errno;
+            const char *exName = NULL, *emsg = NULL;
+            switch( err ){
+                case EBADF: exName = "java/lang/IllegalArgumentException"; emsg = "EBADF"; break;
+                default: exName = "java/io/IOException"; emsg = strerror(err); break;
+            }
+            jclass exClz = env->FindClass(exName);
+            if( exClz != NULL ) env->ThrowNew(exClz, emsg);
+            returnArray = NULL; goto Finally;
         }
         else if (result == 0) {
             // AFAIK this happens either on EOF or on EWOULDBLOCK (see 'man read').
@@ -621,9 +723,13 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
         }
     }
 
-    returnArray = env->NewByteArray(byteCount);
-    env->SetByteArrayRegion(returnArray, 0, byteCount, lpBuffer);
-    delete[] lpBuffer;
+    returnArray = env->NewByteArray(byteCount - byteRemains);
+    if( returnArray == NULL ) goto Finally;
+    env->SetByteArrayRegion(returnArray, 0, byteCount - byteRemains, lpBuffer);
+    assert(env->ExceptionCheck() == JNI_FALSE);
+
+Finally:
+    if( lpBuffer ) free(lpBuffer);
     return returnArray;
 }
 
@@ -633,12 +739,22 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
  */
 JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getBuffersBytesCount
   (JNIEnv *env, jobject, jlong portHandle){
+    int err;
     jint returnValues[2];
     returnValues[0] = -1; //Input buffer
     returnValues[1] = -1; //Output buffer
+
+    err = ioctl(portHandle, FIONREAD, &returnValues[0]) == -1
+       || ioctl(portHandle, TIOCOUTQ, &returnValues[1]) == -1;
+    if( err ){
+        err = errno;
+        jclass exClz = env->FindClass("java/io/IOException");
+        if( exClz != NULL ) env->ThrowNew(exClz, strerror(err));
+        return NULL;
+    }
+
     jintArray returnArray = env->NewIntArray(2);
-    ioctl(portHandle, FIONREAD, &returnValues[0]);
-    ioctl(portHandle, TIOCOUTQ, &returnValues[1]);
+    if( returnArray == NULL ) return NULL;
     env->SetIntArrayRegion(returnArray, 0, 2, returnValues);
     return returnArray;
 }
@@ -801,7 +917,9 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
   (JNIEnv *env, jobject, jlong portHandle) {
 
     jclass intClass = env->FindClass("[I");
+    if( intClass == NULL ) return NULL;
     jobjectArray returnArray = env->NewObjectArray(sizeof(events)/sizeof(jint), intClass, NULL);
+    if( returnArray == NULL ) return NULL;
 
     /*Input buffer*/
     jint bytesCountIn = 0;
@@ -814,30 +932,10 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
     /*Lines status*/
     int statusLines = getLinesStatus(portHandle);
 
-    jint statusCTS = 0;
-    jint statusDSR = 0;
-    jint statusRING = 0;
-    jint statusRLSD = 0;
-    
-    /*CTS status*/
-    if(statusLines & TIOCM_CTS){
-        statusCTS = 1;
-    }
-
-    /*DSR status*/
-    if(statusLines & TIOCM_DSR){
-        statusDSR = 1;
-    }
-
-    /*RING status*/
-    if(statusLines & TIOCM_RNG){
-        statusRING = 1;
-    }
-
-    /*RLSD(DCD) status*/
-    if(statusLines & TIOCM_CAR){
-        statusRLSD = 1;
-    }
+    jint statusCTS = !!(statusLines & TIOCM_CTS);
+    jint statusDSR = !!(statusLines & TIOCM_DSR);
+    jint statusRING = !!(statusLines & TIOCM_RNG);
+    jint statusRLSD = !!(statusLines & TIOCM_CAR);
 
     /*Interrupts*/
     int interrupts[] = {-1, -1, -1, -1, -1};
@@ -894,8 +992,11 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
         forEnd: {
             returnValues[0] = events[i];
             jintArray singleResultArray = env->NewIntArray(2);
+            if( singleResultArray == NULL ) return NULL;
             env->SetIntArrayRegion(singleResultArray, 0, 2, returnValues);
+            if( env->ExceptionCheck() ) return NULL;
             env->SetObjectArrayElement(returnArray, i, singleResultArray);
+            if( env->ExceptionCheck() ) return NULL;
         };
     }
     return returnArray;
@@ -923,34 +1024,17 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_getSerialPortName
 JNIEXPORT jintArray JNICALL Java_jssc_SerialNativeInterface_getLinesStatus
   (JNIEnv *env, jobject, jlong portHandle){
     jint returnValues[4];
-    for(jint i = 0; i < 4; i++){
-        returnValues[i] = 0;
-    }
-    jintArray returnArray = env->NewIntArray(4);
 
     /*Lines status*/
     int statusLines = getLinesStatus(portHandle);
+    returnValues[0] = !!(statusLines & TIOCM_CTS);
+    returnValues[1] = !!(statusLines & TIOCM_DSR);
+    returnValues[2] = !!(statusLines & TIOCM_RNG);
+    returnValues[3] = !!(statusLines & TIOCM_CAR);
 
-    /*CTS status*/
-    if(statusLines & TIOCM_CTS){
-        returnValues[0] = 1;
-    }
-
-    /*DSR status*/
-    if(statusLines & TIOCM_DSR){
-        returnValues[1] = 1;
-    }
-
-    /*RING status*/
-    if(statusLines & TIOCM_RNG){
-        returnValues[2] = 1;
-    }
-
-    /*RLSD(DCD) status*/
-    if(statusLines & TIOCM_CAR){
-        returnValues[3] = 1;
-    }
-    
+    jintArray returnArray = env->NewIntArray(4);
+    if( returnArray == NULL ) return NULL;
     env->SetIntArrayRegion(returnArray, 0, 4, returnValues);
     return returnArray;
 }
+

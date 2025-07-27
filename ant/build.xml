@@ -67,6 +67,17 @@
         <condition property="nativelibdir.suffix" value="arm">
             <equals arg1="${os.target.arch}" arg2="arm_32"/>
         </condition>
+
+        <!-- "riscv32"-->
+        <condition property="nativelibdir.suffix" value="riscv32">
+            <equals arg1="${os.target.arch}" arg2="riscv32"/>
+        </condition>
+
+        <!-- "riscv64"-->
+        <condition property="nativelibdir.suffix" value="riscv64">
+            <equals arg1="${os.target.arch}" arg2="riscv64"/>
+        </condition>
+
         <!-- "ppc_64" <=> "ppc" -->
         <condition property="nativelibdir.suffix" value="ppc">
             <equals arg1="${os.target.arch}" arg2="ppc_64"/>
@@ -213,7 +224,7 @@
         <echo level="info"/>
     </target>
 
-    <target name="show-file-info">
+    <target name="show-file-info" depends="main-props">
         <!-- Show binary output file information -->
         <fileset id="native.files" dir="${maven.nativelibdir.path}" includes="*"/>
         <echo level="info">File information:</echo>
@@ -228,22 +239,21 @@
         <!-- Convert path to unix format -->
         <pathconvert targetos="unix" property="native.file.unix" refid="native.files"/>
 
-        <!-- Prepare command ("file" on unix, "sh.exe" on Windows)-->
-        <condition property="exec.command" value="${git.sh}" else="file">
+        <!-- Prepare command ("sh" on unix, "sh.exe" on Windows)-->
+        <condition property="exec.command" value="${git.sh}" else="sh">
             <resourceexists>
                 <file file="${git.sh}"/>
             </resourceexists>
+        </condition>
+
+        <!-- Retreive minos value (macOS only) -->
+        <condition property="exec.argline" value="otool -l '${native.file.unix}' |grep -E -A4 '(LC_VERSION_MIN_MACOSX|LC_BUILD_VERSION)' | grep -B1 sdk" else="cd .">
+            <equals arg1="${os.target.name}" arg2="osx"/>
         </condition>
 
         <!-- Prepare argument line -->
-        <condition property="exec.argline" value="-c &quot;file '${native.file.unix}'&quot;" else="'${native.file.unix}'">
-            <resourceexists>
-                <file file="${git.sh}"/>
-            </resourceexists>
-        </condition>
-
         <exec executable="${exec.command}">
-            <arg line="${exec.argline}"/>
+            <arg line="-c &quot;file '${native.file.unix}'&amp;&amp; ${exec.argline}&quot;"/>
         </exec>
         <echo level="info"></echo>
     </target>
@@ -277,5 +287,11 @@
             <arg line="."/>
             <arg line="${cmake.build.arg}"/>
         </exec>
+    </target>
+
+    <target name="update-resources-precompiled">
+        <copy todir="${ant.project.basedir}/src/main/resources-precompiled/natives/">
+            <fileset dir="${cmake.generated.directory}/natives/" includes="**" />
+        </copy>
     </target>
 </project>

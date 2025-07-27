@@ -24,6 +24,7 @@
  */
 #include <jni.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <windows.h>
 #include <jssc_SerialNativeInterface.h>
 #include "version.h"
@@ -231,14 +232,29 @@ JNIEXPORT jboolean JNICALL Java_jssc_SerialNativeInterface_setDTR
  * portHandle - port handle
  * buffer - byte array for sending
  */
-JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_write
+JNIEXPORT jint JNICALL Java_jssc_SerialNativeInterface_writeBytes
   (JNIEnv *env, jobject, jlong portHandle, jbyteArray buffer){
     HANDLE hComm = (HANDLE)portHandle;
     DWORD lpNumberOfBytesTransferred;
     DWORD lpNumberOfBytesWritten;
-    OVERLAPPED *overlapped = new OVERLAPPED();
     jint returnValue = -1;
-    jbyte* jBuffer = env->GetByteArrayElements(buffer, JNI_FALSE);
+    if( !buffer ){
+        jclass exClz = env->FindClass("java/lang/NullPointerException");
+        if( exClz ) env->ThrowNew(exClz, "buffer");
+        return 0;
+    }
+    jbyte* jBuffer = env->GetByteArrayElements(buffer, NULL);
+    if( !jBuffer ){
+        if( !env->ExceptionCheck() ){
+            /* IMHO this code should be unreachable, as GetByteArrayElements should already
+             * have set an exception by itself. But will keep it as old code had it and
+             * (who knows) maybe I miss something. So keep it to stay on the safe side. */
+            jclass exClz = env->FindClass("java/lang/RuntimeException");
+            if( exClz ) env->ThrowNew(exClz, "jni->GetByteArrayElements() failed");
+        }
+        return 0;
+    }
+    OVERLAPPED *overlapped = new OVERLAPPED();
     overlapped->hEvent = CreateEventA(NULL, true, false, NULL);
     if(WriteFile(hComm, jBuffer, (DWORD)env->GetArrayLength(buffer), &lpNumberOfBytesWritten, overlapped)){
         returnValue = lpNumberOfBytesWritten;
@@ -269,16 +285,34 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
     HANDLE hComm = (HANDLE)portHandle;
     DWORD lpNumberOfBytesTransferred;
     DWORD lpNumberOfBytesRead;
-    OVERLAPPED *overlapped = new OVERLAPPED();
+    jbyteArray returnArray = NULL;
     jbyte *lpBuffer = NULL;
-    jbyteArray returnArray = env->NewByteArray(byteCount);
+    OVERLAPPED *overlapped = NULL;
 
-    lpBuffer = (jbyte *)malloc(byteCount * sizeof(jbyte));
-    if(lpBuffer == NULL){
-        // return an empty array
-        return returnArray;
+    if( byteCount < 0 ){
+        char emsg[64]; emsg[0] = '\0';
+        snprintf(emsg, sizeof emsg, "byteCount %d. Expected range: 0..2147483647", byteCount);
+        jclass exClz = env->FindClass("java/lang/IllegalArgumentException");
+        if( exClz ) env->ThrowNew(exClz, emsg);
+        returnArray = NULL; goto Finally;
+    }else if( byteCount == 0 ){
+        returnArray = env->NewByteArray(0);
+        goto Finally;
     }
 
+    returnArray = env->NewByteArray(byteCount);
+    if( returnArray == NULL ) goto Finally;
+
+    lpBuffer = (jbyte*)malloc(byteCount*sizeof*lpBuffer);
+    if( !lpBuffer ){
+        char emsg[32]; emsg[0] = '\0';
+        snprintf(emsg, sizeof emsg, "malloc(%d) failed", byteCount*sizeof*lpBuffer);
+        jclass exClz = env->FindClass("java/lang/RuntimeException");
+        if( exClz ) env->ThrowNew(exClz, emsg);
+        returnArray = NULL; goto Finally;
+    }
+
+    overlapped = new OVERLAPPED();
     overlapped->hEvent = CreateEventA(NULL, true, false, NULL);
     if(ReadFile(hComm, lpBuffer, (DWORD)byteCount, &lpNumberOfBytesRead, overlapped)){
         env->SetByteArrayRegion(returnArray, 0, byteCount, lpBuffer);
@@ -290,9 +324,16 @@ JNIEXPORT jbyteArray JNICALL Java_jssc_SerialNativeInterface_readBytes
             }
         }
     }
-    CloseHandle(overlapped->hEvent);
-    delete overlapped;
-    free(lpBuffer);
+    else if(GetLastError() == ERROR_INVALID_HANDLE){
+        jclass exClz = env->FindClass("java/lang/IllegalArgumentException");
+        if( exClz != NULL ) env->ThrowNew(exClz, "EBADF");
+    }
+Finally:
+    if( overlapped ){
+        CloseHandle(overlapped->hEvent);
+        delete overlapped;
+    }
+    if( lpBuffer ) free(lpBuffer);
     return returnArray;
 }
 
@@ -631,47 +672,81 @@ JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_waitEvents
  */
 JNIEXPORT jobjectArray JNICALL Java_jssc_SerialNativeInterface_getSerialPortNames
   (JNIEnv *env, jobject){
-    HKEY phkResult;
+    HKEY phkResult = NULL;
     LPCSTR lpSubKey = "HARDWARE\\DEVICEMAP\\SERIALCOMM\\";
     jobjectArray returnArray = NULL;
-    if(RegOpenKeyExA(HKEY_LOCAL_MACHINE, lpSubKey, 0, KEY_READ, &phkResult) == ERROR_SUCCESS){
-        boolean hasMoreElements = true;
-        DWORD keysCount = 0;
-        char valueName[256];
-        DWORD valueNameSize;
-        DWORD enumResult;
-        while(hasMoreElements){
-            valueNameSize = 256;
-            enumResult = RegEnumValueA(phkResult, keysCount, valueName, &valueNameSize, NULL, NULL, NULL, NULL);
-            if(enumResult == ERROR_SUCCESS){
-                keysCount++;
-            }
-            else if(enumResult == ERROR_NO_MORE_ITEMS){
-                hasMoreElements = false;
-            }
-            else {
-                hasMoreElements = false;
-            }
-        }
-        if(keysCount > 0){
-            jclass stringClass = env->FindClass("java/lang/String");
-            returnArray = env->NewObjectArray((jsize)keysCount, stringClass, NULL);
-            char lpValueName[256];
-            DWORD lpcchValueName;
-            byte lpData[256];
-            DWORD lpcbData;
-            DWORD result;
-            for(DWORD i = 0; i < keysCount; i++){
-                lpcchValueName = 256;
-                lpcbData = 256;
-                result = RegEnumValueA(phkResult, i, lpValueName, &lpcchValueName, NULL, NULL, lpData, &lpcbData);
-                if(result == ERROR_SUCCESS){
-                    env->SetObjectArrayElement(returnArray, i, env->NewStringUTF((char*)lpData));
-                }
-            }
-        }
-        CloseHandle(phkResult);
+    byte lpDataOnStack[256];
+    byte *lpData = lpDataOnStack;
+    DWORD lpData_capacity = 256;
+    char valueName[256];
+    DWORD valueNameSize;
+    DWORD enumResult;
+    boolean hasMoreElements = true;
+    DWORD keysCount = 0;
+    if(RegOpenKeyExA(HKEY_LOCAL_MACHINE, lpSubKey, 0, KEY_READ, &phkResult) != ERROR_SUCCESS){
+        returnArray = NULL;
+        goto Finally;
     }
+    /* Iterate a 1st time to see how long our resulting array has to be. */
+    while(hasMoreElements){
+        valueNameSize = 256;
+        enumResult = RegEnumValueA(phkResult, keysCount, valueName, &valueNameSize, NULL, NULL, NULL, NULL);
+        if(enumResult == ERROR_SUCCESS){
+            keysCount++;
+        }
+        else if(enumResult == ERROR_NO_MORE_ITEMS){
+            hasMoreElements = false;
+        }
+        else {
+            hasMoreElements = false;
+        }
+    }
+    if(keysCount > 0){
+        jclass stringClass = env->FindClass("java/lang/String");
+        returnArray = env->NewObjectArray((jsize)keysCount, stringClass, NULL);
+        DWORD lpcbData;
+        DWORD result;
+        /* iterate 2nd time but this time our array is ready to catch results. */
+        for(DWORD i = 0; i < keysCount; i++){
+            valueNameSize = 256;
+            lpcbData = lpData_capacity;
+            result = RegEnumValueA(phkResult, i, valueName, &valueNameSize, NULL, NULL, lpData, &lpcbData);
+            if(result == ERROR_SUCCESS){
+                env->SetObjectArrayElement(returnArray, i, env->NewStringUTF((char*)lpData));
+            }else if(result == ERROR_MORE_DATA && lpData_capacity < UINT_MAX){
+                /* whoops our supplied buffer was not large enough. Fallback to a heap
+                 * allocd one. RegEnumValueA was kind enough to set 'lpcbData' to the
+                 * required length before return. */
+                lpData = (lpData == lpDataOnStack) ? NULL : lpData;
+                /* MS doc is unclear to me if returned size includes the required
+                 * zero-term. So to stay safe, we provide one byte more. */
+                if(lpcbData < UINT_MAX) lpcbData += 1;
+                byte *tmp = (byte*)realloc(lpData, lpcbData*sizeof*tmp);
+                if(tmp == NULL){
+                    jclass exClz = env->FindClass("java/lang/OutOfMemoryError");
+                    if(exClz != NULL) env->ThrowNew(exClz, NULL);
+                    returnArray = NULL;
+                    goto Finally;
+                }
+                /* install new buffer and reset 'i' so we try the same element again. */
+                lpData_capacity = lpcbData;
+                lpData = tmp;
+                i -= 1;
+            }else{
+                char exMsg[128];
+                snprintf(exMsg, sizeof exMsg, "RegEnumValueA(): Code %ld: "
+                    "https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes",
+                    result);
+                jclass exClz = env->FindClass("java/lang/RuntimeException");
+                if(exClz != NULL) env->ThrowNew(exClz, exMsg);
+                returnArray = NULL;
+                goto Finally;
+            }
+        }
+    }
+Finally:
+    if(lpData != NULL && lpData != lpDataOnStack) free(lpData);
+    if(phkResult != NULL) CloseHandle(phkResult);
     return returnArray;
 }
 
