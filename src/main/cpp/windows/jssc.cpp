@@ -37,7 +37,8 @@
 #   define PRIsz "u"
 #   define PRIssz "d"
 #else
-#   error "PRIsz and PRIssz definitions not configured for this target"
+#   define PRIsz "zu"
+#   define PRIssz "zd"
 #endif
 
 #define MAX_PORT_NAME_STR_LEN 32
