@@ -29,6 +29,7 @@
 #include <jssc_SerialNativeInterface.h>
 #include "version.h"
 
+// For snprintf formatting
 #if defined(_MSC_VER) && _MSC_VER < 1800
 #   define PRIsz "Iu"
 #   define PRIssz "Id"
@@ -36,8 +37,7 @@
 #   define PRIsz "u"
 #   define PRIssz "d"
 #else
-#   define PRIsz "zu"
-#   define PRIssz "zd"
+#   error "PRIsz and PRIssz definitions not configured for this target"
 #endif
 
 #define MAX_PORT_NAME_STR_LEN 32
