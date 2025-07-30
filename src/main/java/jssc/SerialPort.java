@@ -440,7 +440,7 @@ public class SerialPort {
      * @return
      *      Number of bytes written. WARN: Number of BYTES, NOT number of CHARS!
      *      This may differ from <code>string.length()</code> if passed in string
-     *      contains chars outside the english alphabeth. If you need reliable
+     *      contains chars outside the english alphabet. If you need reliable
      *      return lengths, consider calling
      *      {@link java.lang.String#getBytes(java.nio.charset.Charset)}
      *      yourself and then passing result to
@@ -467,7 +467,7 @@ public class SerialPort {
      * @return
      *      Number of bytes written. WARN: Number of BYTES, NOT number of CHARS!
      *      This may differ from <code>string.length()</code> if passed in string
-     *      contains chars outside the english alphabeth. If you need reliable
+     *      contains chars outside the english alphabet. If you need reliable
      *      return lengths, consider calling
      *      {@link java.lang.String#getBytes(java.nio.charset.Charset)}
      *      yourself and then passing result to
